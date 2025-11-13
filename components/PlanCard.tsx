@@ -51,13 +51,6 @@ export default function PlanCard({
         {/* --- Title --- */}
         <h3 className="text-2xl font-semibold text-slate-900 mb-3">{title}</h3>
 
-        {/* --- Note Box --- */}
-        {note && (
-          <div className="bg-[#f1fbf4] border border-[#d5f0df] text-[#1b5131] text-xs sm:text-sm px-4 py-2 rounded-lg mb-4 leading-snug">
-            {note}
-          </div>
-        )}
-
         {/* --- Description with Read More --- */}
         <div className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
           <motion.div
@@ -80,6 +73,12 @@ export default function PlanCard({
             {isExpanded ? "Read less ▲" : "Read more ▼"}
           </button>
         </div>
+        {/* --- Note Box --- */}
+        {note && (
+          <div className="bg-[#f1fbf4] border border-[#d5f0df] text-[#1b5131] text-xs sm:text-sm px-4 py-2 rounded-lg mb-4 leading-snug">
+            {note}
+          </div>
+        )}
 
         {/* --- Packages Section --- */}
         {packages?.length > 0 && (

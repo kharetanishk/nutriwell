@@ -11,15 +11,15 @@ const faqs = [
   },
   {
     q: "What services does Anubha’s Nutrition Clinic offer?",
-    a: "Anubha’s Nutrition Clinic offers a range of services including nutrition assessment, personalized meal planning, weight loss programs, medical management, food allergy management, wedding glow plans, baby & toddler food guidance, and child & old age nutrition plans.",
+    a: "Anubha’s Nutrition Clinic offers a range of services including nutrition assessment, personalized meal planning, weight loss programs, medical management, food allergy and intolerance management, wedding glow plans, baby & toddler first solid food, and child & old age nutrition plans.",
   },
   {
     q: "Who can benefit from visiting a dietitian clinic?",
-    a: "Anyone! Whether managing a chronic condition, looking to lose weight, or simply aiming to improve overall health, everyone can benefit from professional nutrition guidance.",
+    a: "Anyone can benefit from visiting a dietitian clinic, including individuals with chronic health conditions, those looking to manage their weight, and those seeking general health and wellness guidance",
   },
   {
     q: "What can I expect during my first visit?",
-    a: "Your first visit includes a detailed discussion of your dietary habits, health status, and lifestyle. The dietitian will create a personalized plan aligned with your health goals.",
+    a: "During your first visit, you can expect a comprehensive assessment of your dietary habits, health status, and lifestyle. The dietitian will work with you to develop a personalized nutrition plan.",
   },
   {
     q: "How long does a typical dietitian appointment last?",
@@ -31,31 +31,31 @@ const faqs = [
   },
   {
     q: "Can I get a personalized meal plan?",
-    a: "Yes, personalized meal plans are crafted to your unique needs, preferences, and medical conditions.",
+    a: "Yes, dietitians can create personalized meal plans tailored to your specific needs and health goals.",
   },
   {
     q: "How will the consultation process work if I don’t live in Pune?",
-    a: "Consultations are available both in-person and online via phone, Skype, FaceTime, or email — making it convenient for clients anywhere in the world.",
+    a: "Our consultation is designed to benefit all clients, no matter where they live. Besides in-person meetings, clients can interact with us via the phone/ Skype calls/ FaceTime, and email. In fact, many of our Pune -based clients also opt for video/ Audio chats for their appointments",
   },
   {
     q: "What happens once I make the payment?",
-    a: "Once payment is made, an appointment schedule and a ‘Getting to Know You’ form will be shared. No tests are required unless you wish to share existing medical reports.",
+    a: "We will generate your appointment schedule and send you a ‘Getting to Know You’ sheet. This contains all the info we will require from you to start the program. No other tests / reports are necessary; however, you are free to share the reports you already have.",
   },
   {
     q: "I travel a lot. How would that be accommodated?",
-    a: "Your plan will be designed keeping your travel lifestyle in mind, with guidance on eating smart while on the move or abroad.",
+    a: "Most of our clients have travel as an essential part of their jobs. The diet plan will be designed keeping in tune with the lifestyle and job requirements you might have. You will be educated on how to plan meals while traveling and assisted with choosing best options when you are in a new country/ city.",
   },
   {
     q: "I work in different shifts. Will the plan account for that?",
-    a: "Yes. The diet plan will be customized for your day/night shifts, ensuring nutritional needs are met regardless of timing or food availability.",
+    a: "We will design an eating pattern that fits into your work schedule & lifestyle. If you do work in shifts (day & night), your meal plan will be tweaked depending on your nutritional requirements as per the work shifts and the availability and practicality of food choices.",
   },
   {
     q: "Will exercise advice also be included in the package?",
-    a: "Yes. Based on your fitness levels, an appropriate exercise plan will be suggested — whether gym, yoga, or daily movement routines.",
+    a: "Yes. Your current fitness levels and exercise pattern will be analysed for any additional changes that need to be made. Specific plans, for example exercise prescriptions to be followed at your gym, will be given to you.",
   },
   {
     q: "What kind of exercise is recommended?",
-    a: "Any enjoyable activity — strength training, yoga, swimming, cycling, or dancing — is encouraged. You’ll also learn exercise fundamentals for long-term fitness.",
+    a: "Any form of exercise that challenges you and is an enjoyable experience. It could be strength training, running or Yoga and also recreational exercise like dancing, swimming, cycling, etc. You will also be educated on the basics of exercise physiology and bio-mechanics so that you have good fundamentals and can make intelligent choices in the future also.",
   },
 ];
 

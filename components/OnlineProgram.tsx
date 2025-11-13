@@ -37,11 +37,17 @@ export default function OnlineProgram() {
           className="text-slate-600 space-y-3 mb-12 text-base max-w-2xl mx-auto text-left sm:text-center list-disc list-inside marker:text-[#7fb77e]"
         >
           <li>Send a WhatsApp message or call to get started.</li>
-          <li>Receive a Client Assessment Form and consultation call.</li>
           <li>
-            Your personalized diet plan will be delivered within 48 hours.
+            Once we receive your WhatsApp , we will send you a client assessment
+            form which will be followed by a call from us to understand your
+            expectations and lifestyle. A diet plan will be curated as per your
+            needs to make sure you get the best.
           </li>
-          <li>Plans are modified as per your chosen duration and goals.</li>
+          <li>
+            We will send you the diet plan within 48 hours, so all it will take
+            is 48 hours for you to make a new and healthy lifestyle choice.
+          </li>
+          <li>The diet will be modified as per the plan you choose.</li>
         </motion.ul>
 
         <motion.div
@@ -50,7 +56,7 @@ export default function OnlineProgram() {
           transition={{ delay: 0.35, duration: 0.5 }}
         >
           <Link
-            href="https://wa.me/919876543210"
+            href="https://wa.me/919713885582"
             target="_blank"
             className="inline-flex items-center gap-2 bg-white text-[#318a63] px-6 py-3 rounded-full font-semibold text-lg shadow-lg hover:bg-[#f1faf4] active:scale-95 transition-colors"
           >

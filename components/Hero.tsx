@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import FAQSection from "@/components/FAQSection";
 import HowItWorks from "@/components/HowItWorks";
 import OnlineProgram from "@/components/OnlineProgram";
+import About from "./About";
 
 export default function Hero() {
   const aboutRef = useRef<HTMLDivElement | null>(null);
@@ -17,8 +18,8 @@ export default function Hero() {
     let target: HTMLDivElement | null = null;
     if (hash === "#about") target = aboutRef.current;
     if (hash === "#faq") target = faqRef.current;
-    if (hash === "#how-it-works") target = howItWorksRef.current;
-    if (hash === "#online-program") target = onlineProgramRef.current;
+    // if (hash === "#how-it-works") target = howItWorksRef.current;
+    // if (hash === "#online-program") target = onlineProgramRef.current;
 
     if (target) {
       setTimeout(() => {
@@ -180,7 +181,7 @@ export default function Hero() {
       <div className="absolute inset-0 bg-linear-to-b from-white/90 via-white/75 to-transparent" />
 
       {/* --- Hero Content --- */}
-      <div className="relative z-10 flex flex-col items-center justify-start min-h-[85vh] sm:min-h-[90vh] px-6 max-w-3xl text-center ">
+      <div className="relative z-10 flex flex-col items-center justify-start min-h-[70vh] sm:min-h-[60vh] px-6 max-w-3xl text-center ">
         <motion.h1
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -226,41 +227,9 @@ export default function Hero() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.2, duration: 0.7 }}
-        className="relative z-20 mt-16 w-full max-w-4xl mx-auto px-6"
+        className="relative z-20 mt-6 w-full max-w-4xl mx-auto px-6"
       >
-        <div className="bg-white/90 rounded-3xl shadow-(--shadow-soft) px-6 sm:px-10 py-10 sm:py-14 border border-[#dfe7dd] backdrop-blur-lg flex flex-col items-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-slate-900 text-center">
-            Meet Dr. Anubha
-          </h2>
-          <div className="text-slate-600 text-lg leading-relaxed max-w-2xl w-full">
-            <p className="mb-4 text-center">
-              Dt. Anubha Issac is a highly qualified and experienced nutrition
-              expert with a Master’s degree in{" "}
-              <strong>Dietetics &amp; Food Service Management</strong>. Over the
-              past <strong>15 years</strong>, she has helped countless
-              individuals achieve better health and sustainable lifestyle
-              transformations through scientific, personalized nutrition
-              guidance.
-            </p>
-            <p className="mb-2 text-center">
-              <strong>She holds multiple certifications, including:</strong>
-            </p>
-            <ul className="list-disc list-inside my-4 mx-auto text-left max-w-md pl-5 marker:text-emerald-500">
-              <li>Specialist in Weight Management</li>
-              <li>Advanced Clinical Dietetics</li>
-              <li>Sports Nutrition</li>
-              <li>Child Nutrition and Health Education</li>
-              <li>Renal Nutrition</li>
-            </ul>
-            <p className="text-center">
-              With deep clinical knowledge and a compassionate approach, Dt.
-              Anubha designs holistic diet plans that align with each
-              individual’s medical condition, fitness goals, and lifestyle. Her
-              focus goes beyond diet charts — she builds lasting, mindful eating
-              habits that empower people to take charge of their own well-being.
-            </p>
-          </div>
-        </div>
+        <About />
       </motion.div>
 
       {/* Other sections */}
@@ -277,18 +246,6 @@ export default function Hero() {
       </motion.div>
 
       <motion.div
-        id="faq"
-        ref={faqRef}
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.2, duration: 0.7 }}
-        className="relative z-20 w-full mt-28"
-      >
-        <FAQSection />
-      </motion.div>
-
-      <motion.div
         id="online-program"
         ref={onlineProgramRef}
         initial={{ opacity: 0, y: 50 }}
@@ -298,6 +255,18 @@ export default function Hero() {
         className="relative z-20 w-full mt-28"
       >
         <OnlineProgram />
+      </motion.div>
+
+      <motion.div
+        id="faq"
+        ref={faqRef}
+        initial={{ opacity: 0, y: 50 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.2, duration: 0.7 }}
+        className="relative z-20 w-full mt-28"
+      >
+        <FAQSection />
       </motion.div>
 
       <div className="h-24 sm:h-36 md:h-40" />

@@ -20,9 +20,9 @@ const steps = [
     title: "Step 02 — The Consultation Stage",
     icon: Video,
     points: [
-      "During the consultation, we co-create a sustainable and culturally suitable eating pattern.",
-      "Your plan and exercise routine are reviewed and adjusted as needed.",
-      "Special meal plans provided for occasions like travel, holidays, or festivals.",
+      "At the consultation meeting, we work together on devising an eating pattern that is sustainable and a culture fit.",
+      "Depending on the plan — we review and alter your meal plan and review your exercise plan.",
+      "We also provide special meal plans for occasions like work travel, holiday, wedding, festivals etc.",
     ],
   },
   {
@@ -30,9 +30,7 @@ const steps = [
     title: "Step 03 — The Post-Consultation Stage",
     icon: HeartPulse,
     points: [
-      "After completing your 3 or 6-month program, you receive a maintenance diet plan.",
-      "We provide guidelines and learnings to sustain your progress in real life.",
-      "You’ll know exactly how to manage your daily routine going forward.",
+      "Once you complete the program with us, a maintenance diet summarizing all the learnings from the program and also practical guidelines are provided to you, that take care of most of the situations that you will face going forward in your daily life.",
     ],
   },
 ];

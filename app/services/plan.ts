@@ -119,4 +119,81 @@ This plan includes:
       },
     ],
   },
+  {
+    title: "Medical Management Plan",
+    slug: "medical-management",
+    description: `
+  Be it PCOS/PCOD, Thyroid, Insulin resistance, Diabetes, Hypertension, CKD, Liver Disease, Dialysis, Arthritis, Anaemia, Food Allergies/Intolerance, Old Age Nutrition, Child and Kids Nutrition, Autism, Pregnancy, Lactation — we’re here to guide you toward a healthier lifestyle.
+  
+  At Dr. Anubha’s Nutrition Clinic, medical nutrition therapy is designed to support various health conditions through personalized diet guidance and continuous monitoring. Our focus is to help you heal and recover naturally by optimizing your food choices and lifestyle habits.
+    `,
+    howItWorks: `
+  • Customized nutritional plans tailored to your specific medical condition.  
+  • We coordinate with your doctor to ensure safe, evidence-based results.  
+  • Guidance on natural supplements — only once approved by your physician.  
+  • Continuous progress monitoring and support.  
+    `,
+    packages: [
+      {
+        name: "Medical Management Consultation",
+        details:
+          "Comprehensive medical nutrition consultation with a 40-minute session.",
+        duration: "40 minutes",
+        price: "₹5,500",
+      },
+    ],
+  },
+  {
+    title: "Groom or Bride-to-be Plan",
+    slug: "groom-bride-plan",
+    description: `
+  Congratulations! You’re a groom or bride-to-be — and we know you want to look exactly how you’ve imagined yourself on your big day. This plan helps you achieve that vision naturally and radiantly.
+  
+  If you’re someone who desires a glowing complexion, balanced body, and healthy skin that lasts long after the wedding, this plan is designed for you. Dr. Anubha’s customized pre-wedding diet ensures that you look and feel your absolute best — inside and out.
+    `,
+    howItWorks: `
+  • One-on-one consultation session (40 minutes).  
+  • A single personalized diet plan with a complete nutrition and meal guide.  
+  • Detox and rejuvenation plan to prepare your body and skin before the big day.  
+  • Shopping-day food guidance and healthy snacking alternatives.  
+  • Hydration and healthy drink recommendations.  
+  • Fasting and feasting guide for wedding and pre-wedding events.  
+    `,
+    packages: [
+      {
+        name: "Pre-Wedding Glow Plan",
+        details:
+          "Customized diet and wellness plan for 40-minute consultation.",
+        duration: "40 minutes",
+        price: "₹3,000",
+      },
+    ],
+  },
+  {
+    title: "Corporate Health & Wellness Plan",
+    slug: "corporate-plan",
+    description: `
+  With extremely hectic schedules and demanding jobs, focusing on fitness and health often takes a backseat. Since most people spend a major portion of their day at work, it’s only ideal to have a well-designed health and wellness plan for both employees and employers.
+  
+  At Dr. Anubha’s Nutrition Clinic, our **Corporate Health Plan** is custom-built according to each company’s requirements. The program is designed to improve the overall well-being of your team, helping individuals make sustainable, healthful choices in their everyday work environment.
+    `,
+    howItWorks: `
+  • 40-minute corporate session — includes 30-minute workshop and 10-minute discussion.  
+  • Advanced health assessment using body composition analysis (weight, BMI, body fat, and muscle mass).  
+  • Colour-coded health status reports for easy interpretation.  
+  • Seminars and presentations on lifestyle issues like obesity, fatigue, diabetes, etc.  
+  • Office canteen inspection with healthy meal and snack recommendations.  
+  • Exercise seminars and travel-friendly nutrition guides for employees.  
+  • Optional one-on-one nutritional counselling for employees seeking personalized guidance.  
+    `,
+    packages: [
+      {
+        name: "Corporate Wellness Session",
+        details:
+          "Comprehensive 40-minute corporate session (30-minute workshop + 10-minute discussion).",
+        duration: "40 minutes",
+        price: "₹6,800 per session",
+      },
+    ],
+  },
 ];
