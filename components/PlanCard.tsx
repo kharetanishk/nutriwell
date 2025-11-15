@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { useRef, useState, useLayoutEffect } from "react";
 import { Plan } from "@/app/services/plan";
+import { useBookingForm } from "@/app/book/context/BookingFormContext";
+import { useRouter } from "next/navigation";
 
 export default function PlanCard({
   title,
@@ -18,7 +19,10 @@ export default function PlanCard({
   const [howOpen, setHowOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
 
-  // --- Refs & States for dynamic heights ---
+  const { setForm, resetForm } = useBookingForm();
+  const router = useRouter();
+
+  // dynamic height refs
   const contentRef = useRef<HTMLParagraphElement>(null);
   const howRef = useRef<HTMLDivElement>(null);
   const termsRef = useRef<HTMLUListElement>(null);
@@ -38,6 +42,28 @@ export default function PlanCard({
   useLayoutEffect(() => {
     setTermsHeight(termsOpen ? termsRef.current?.scrollHeight || 50 : 0);
   }, [termsOpen, terms]);
+
+  /* -------------------------------------------------
+      HANDLE BUY PLAN (Production Safe)
+  --------------------------------------------------*/
+  function handleBuyPlan(pkg: any) {
+    const priceRaw = Number(pkg.price.replace(/[₹, ]/g, "") || 0);
+
+    // reset previous form if any
+    resetForm();
+
+    // set selected plan in global context
+    setForm({
+      planSlug: slug,
+      planName: title,
+      planPackageName: pkg.name,
+      planPackageDuration: pkg.duration || null,
+      planPrice: pkg.price,
+      planPriceRaw: priceRaw,
+    });
+
+    router.push("/book/user-details");
+  }
 
   return (
     <motion.div
@@ -59,18 +85,17 @@ export default function PlanCard({
       "
     >
       <div className="flex flex-col flex-grow">
-        {/* --- Title --- */}
+        {/* Title */}
         <h3 className="text-2xl font-semibold text-slate-900 mb-3">{title}</h3>
 
-        {/* --- Description Expandable --- */}
+        {/* Description */}
         <div className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6">
           <motion.div
-            layout
             style={{
               overflow: "hidden",
               pointerEvents: isExpanded ? "auto" : "none",
-              height: isExpanded ? descHeight || "auto" : 100,
-              transition: "height 0.45s cubic-bezier(0.4,0,0.2,1)",
+              height: isExpanded ? descHeight : 100,
+              transition: "height 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
             <p ref={contentRef} className="whitespace-pre-line pb-2">
@@ -86,38 +111,36 @@ export default function PlanCard({
           </button>
         </div>
 
-        {/* --- Note Box (Baby solid food plan etc.) --- */}
+        {/* Note */}
         {note && (
           <div className="bg-[#f1fbf4] border border-[#d5f0df] text-[#1b5131] text-xs sm:text-sm px-4 py-2 rounded-lg mb-6 leading-snug">
             {note}
           </div>
         )}
 
-        {/* --- Packages --- */}
+        {/* Packages */}
         {packages?.length > 0 && (
           <div className="space-y-4 mb-6">
             {packages.map((pkg, index) => (
               <div
                 key={index}
                 className="
-                  border border-[#e0ece5] 
-                  rounded-xl 
-                  p-5 
-                  flex flex-col sm:flex-row 
-                  sm:items-center 
-                  sm:justify-between 
-                  bg-[#fafdfa] 
-                  hover:bg-[#f5fbf8]
-                  transition-all
-                "
+                border border-[#e0ece5] 
+                rounded-xl 
+                p-5 
+                flex flex-col sm:flex-row 
+                sm:items-center 
+                sm:justify-between 
+                bg-[#fafdfa] 
+                hover:bg-[#f5fbf8]
+                transition-all
+              "
               >
-                <div className="flex-1 text-left">
+                <div className="flex-1">
                   <h4 className="text-[#1b5131] font-semibold text-base sm:text-lg">
                     {pkg.name}
                   </h4>
-
                   <p className="text-slate-600 text-sm mt-1">{pkg.details}</p>
-
                   {pkg.duration && (
                     <p className="text-slate-500 text-xs mt-0.5">
                       Duration: {pkg.duration}
@@ -130,24 +153,29 @@ export default function PlanCard({
                     {pkg.price}
                   </p>
 
-                  <Link
-                    href={{
-                      pathname: "/book/user-details",
-                      query: {
-                        plan: slug,
-                      },
-                    }}
-                    className="inline-block rounded-full bg-gradient-to-r from-[#7fb77e] via-[#6fbb9c] to-[#64a0c8] text-white px-6 py-2 mt-2 text-sm sm:text-base font-semibold shadow-md hover:shadow-lg hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 w-full sm:w-auto"
+                  <button
+                    onClick={() => handleBuyPlan(pkg)}
+                    className="
+                      inline-block rounded-full 
+                      bg-gradient-to-r from-[#7fb77e] via-[#6fbb9c] to-[#64a0c8] 
+                      text-white px-6 py-2 mt-2 
+                      text-sm sm:text-base 
+                      font-semibold shadow-md 
+                      hover:shadow-lg hover:scale-[1.03] 
+                      active:scale-[0.97] 
+                      transition-all duration-300 
+                      w-full sm:w-auto
+                    "
                   >
                     Buy Plan
-                  </Link>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* --- How It Works --- */}
+        {/* How it works */}
         {howItWorks && (
           <div className="mt-4 border-t border-[#e0ece5] pt-4">
             <button
@@ -168,8 +196,8 @@ export default function PlanCard({
               style={{
                 overflow: "hidden",
                 pointerEvents: howOpen ? "auto" : "none",
-                height: howOpen ? howHeight || "auto" : 0,
-                transition: "height 0.35s cubic-bezier(0.4,0,0.2,1)",
+                height: howOpen ? howHeight : 0,
+                transition: "height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
             >
               <div
@@ -182,7 +210,7 @@ export default function PlanCard({
           </div>
         )}
 
-        {/* --- Terms & Conditions --- */}
+        {/* Terms */}
         {terms && terms.length > 0 && (
           <div className="mt-4 border-t border-[#e0ece5] pt-4">
             <button
@@ -203,16 +231,16 @@ export default function PlanCard({
               style={{
                 overflow: "hidden",
                 pointerEvents: termsOpen ? "auto" : "none",
-                height: termsOpen ? termsHeight || "auto" : 0,
-                transition: "height 0.35s cubic-bezier(0.4,0,0.2,1)",
+                height: termsOpen ? termsHeight : 0,
+                transition: "height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
             >
               <ul
                 ref={termsRef}
                 className="list-disc ml-5 mt-2 text-slate-600 text-sm sm:text-base space-y-1 pb-2"
               >
-                {terms.map((term, i) => (
-                  <li key={i}>{term}</li>
+                {terms.map((t, i) => (
+                  <li key={i}>{t}</li>
                 ))}
               </ul>
             </motion.div>

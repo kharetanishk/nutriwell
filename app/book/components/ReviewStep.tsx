@@ -84,7 +84,7 @@ export default function ReviewStep() {
             { label: "Plan Name", value: form.planName },
             {
               label: "Price",
-              value: form.planPrice ? `₹${form.planPrice}` : null,
+              value: form.planPrice ? `${form.planPrice}` : null,
             },
           ]}
         />

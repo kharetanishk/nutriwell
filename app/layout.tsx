@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ThemeContextProvider from "@/lib/themeProvider";
+import Providers from "./Providers"; // 🌟 Global Booking Provider Wrapper
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,23 +18,26 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "NutriWell | Nutrition Doctor",
-  description: "Personalized nutrition and wellness care by Dr. Priya Sharma",
+  description: "Personalized nutrition and wellness care",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-slate-800`}
       >
         <ThemeContextProvider>
-          <Navbar />
-          <main className="min-h-screen pt-20">{children}</main>
-          <Footer />
+          {/* 🌟 All client providers loaded here */}
+          <Providers>
+            <Navbar />
+            <main className="min-h-screen pt-20">{children}</main>
+            <Footer />
+          </Providers>
         </ThemeContextProvider>
       </body>
     </html>

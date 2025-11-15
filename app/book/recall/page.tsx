@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
 
@@ -8,51 +8,67 @@ export default function RecallPage() {
   const { form } = useBookingForm();
   const router = useRouter();
 
+  /* -------------------------------------------------
+      1️⃣ BLOCK DIRECT ACCESS (NO PLAN? → GO BACK)
+  --------------------------------------------------*/
+  useEffect(() => {
+    if (!form.planSlug || !form.planName || !form.planPrice) {
+      router.replace("/services");
+    }
+  }, [form]);
+
+  /* -------------------------------------------------
+      ACTIONS
+  --------------------------------------------------*/
   function goToSlotSelection() {
     router.push("/book/slot");
   }
 
   function goBack() {
-    router.back();
+    router.push("/book/user-details"); // safer than router.back()
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#f9fcfa] to-[#f1f7f3] py-10 px-4 sm:px-6 flex justify-center">
       <div className="max-w-3xl w-full bg-white rounded-2xl shadow-lg p-6 sm:p-8">
-        {/* PLAN BANNER */}
+        {/* -------------------------------------------------
+            PLAN BANNER
+        -------------------------------------------------- */}
         {form.planName && (
           <div className="mb-6 bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
             <p className="font-semibold text-emerald-900 text-lg">
               Booking: {form.planName}
+              {form.planPackageName ? ` — ${form.planPackageName}` : ""}
             </p>
-            <p className="text-emerald-700 text-sm">Price: ₹{form.planPrice}</p>
+            <p className="text-emerald-700 text-sm">Price: {form.planPrice}</p>
           </div>
         )}
 
-        {/* TITLE */}
+        {/* -------------------------------------------------
+            TITLE
+        -------------------------------------------------- */}
         <h2 className="text-2xl font-semibold text-emerald-700 mb-4">
           Final Review
         </h2>
 
         <p className="text-sm text-slate-600 mb-6">
-          Please verify your entered information before continuing to slot
-          selection.
+          Please verify your details before continuing to slot selection.
         </p>
 
-        {/* SECTIONS */}
+        {/* -------------------------------------------------
+            DETAILS SECTIONS
+        -------------------------------------------------- */}
         <div className="space-y-6">
-          {/* PERSONAL DETAILS */}
           <Section title="Personal Details">
             <Item label="Full Name" value={form.fullName} />
             <Item label="Mobile" value={form.mobile} />
             <Item label="Email" value={form.email} />
             <Item label="Date of Birth" value={form.dob} />
-            <Item label="Age" value={form.age?.toString()} />
+            <Item label="Age" value={form.age ? form.age.toString() : "—"} />
             <Item label="Gender" value={form.gender} />
             <Item label="Address" value={form.address} />
           </Section>
 
-          {/* MEASUREMENTS */}
           <Section title="Body Measurements">
             <Item label="Weight" value={form.weight} />
             <Item label="Height" value={form.height} />
@@ -61,7 +77,6 @@ export default function RecallPage() {
             <Item label="Hip" value={form.hip} />
           </Section>
 
-          {/* MEDICAL */}
           <Section title="Medical Details">
             <Item label="Medical History" value={form.medicalHistory} />
             <Item
@@ -72,13 +87,12 @@ export default function RecallPage() {
               label="Reports"
               value={
                 form.reports?.length
-                  ? `${form.reports.length} file(s) uploaded`
+                  ? `${form.reports.length} file(s)`
                   : "No reports uploaded"
               }
             />
           </Section>
 
-          {/* LIFESTYLE */}
           <Section title="Lifestyle & Habits">
             <Item label="Bowel Movement" value={form.bowel} />
             <Item label="Daily Food Intake" value={form.dailyFood} />
@@ -89,20 +103,20 @@ export default function RecallPage() {
           </Section>
         </div>
 
-        {/* BUTTONS */}
+        {/* -------------------------------------------------
+            NAVIGATION BUTTONS
+        -------------------------------------------------- */}
         <div className="flex justify-between mt-8">
           <button
             onClick={goBack}
-            className="px-4 py-2 border border-gray-300 rounded-lg 
-                     text-gray-700 hover:bg-gray-100"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
           >
             ← Back
           </button>
 
           <button
             onClick={goToSlotSelection}
-            className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold 
-                       hover:brightness-110"
+            className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:brightness-110"
           >
             Proceed to Slot Selection →
           </button>
@@ -112,7 +126,9 @@ export default function RecallPage() {
   );
 }
 
-/* ---------- UI SUB-COMPONENTS ---------- */
+/* -------------------------------------------------
+    UI SUBCOMPONENTS
+-------------------------------------------------- */
 
 function Section({
   title,

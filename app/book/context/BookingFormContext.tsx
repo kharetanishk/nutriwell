@@ -8,9 +8,6 @@ import React, {
   ReactNode,
 } from "react";
 
-/* -------------------------------------------------
-    BOOKING FORM TYPE (NULLABLE FIELDS)
---------------------------------------------------*/
 export type BookingForm = {
   fullName: string | null;
   mobile: string | null;
@@ -40,11 +37,15 @@ export type BookingForm = {
   planSlug: string | null;
   planName: string | null;
   planPrice: string | null;
+  planPriceRaw: number | null;
+  planPackageName: string | null;
+  planPackageDuration: string | null;
+
+  appointmentMode?: string | null;
+  appointmentDate?: string | null;
+  appointmentTime?: string | null;
 };
 
-/* -------------------------------------------------
-    INITIAL STATE
---------------------------------------------------*/
 const initialForm: BookingForm = {
   fullName: null,
   mobile: null,
@@ -74,11 +75,15 @@ const initialForm: BookingForm = {
   planSlug: null,
   planName: null,
   planPrice: null,
+  planPriceRaw: null,
+  planPackageName: null,
+  planPackageDuration: null,
+
+  appointmentMode: null,
+  appointmentDate: null,
+  appointmentTime: null,
 };
 
-/* -------------------------------------------------
-    CONTEXT TYPE
---------------------------------------------------*/
 type ContextType = {
   form: BookingForm;
   setForm: (data: Partial<BookingForm>) => void;
@@ -87,30 +92,30 @@ type ContextType = {
 
 const BookingFormContext = createContext<ContextType | undefined>(undefined);
 
-/* -------------------------------------------------
-    PROVIDER WITH LOCAL STORAGE SYNC
---------------------------------------------------*/
 export function BookingFormProvider({ children }: { children: ReactNode }) {
   const [form, setFormState] = useState<BookingForm>(initialForm);
-  const [loaded, setLoaded] = useState(false); // hydration-safe flag
+  const [loaded, setLoaded] = useState(false);
 
-  // 1️⃣ Load data from localStorage on mount (CSR ONLY)
+  // Load on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem("bookingForm");
       if (saved) {
-        setFormState(JSON.parse(saved));
+        setFormState({ ...initialForm, ...JSON.parse(saved) });
       }
-    } catch (error) {
-      console.error("Failed loading saved booking form:", error);
+    } catch (err) {
+      console.error("Form restore error:", err);
     }
     setLoaded(true);
   }, []);
 
-  // 2️⃣ Save into localStorage whenever form changes
+  // Save on change
   useEffect(() => {
-    if (loaded) {
+    if (!loaded) return;
+    try {
       localStorage.setItem("bookingForm", JSON.stringify(form));
+    } catch (err) {
+      console.error("Form save error:", err);
     }
   }, [form, loaded]);
 
@@ -123,8 +128,7 @@ export function BookingFormProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("bookingForm");
   }
 
-  // Avoid hydration mismatch by not rendering children until loaded
-  if (!loaded) return null;
+  if (!loaded) return null; // prevent hydration mismatch
 
   return (
     <BookingFormContext.Provider value={{ form, setForm, resetForm }}>
@@ -133,9 +137,6 @@ export function BookingFormProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/* -------------------------------------------------
-    HOOK
---------------------------------------------------*/
 export function useBookingForm() {
   const ctx = useContext(BookingFormContext);
   if (!ctx)

@@ -20,27 +20,21 @@ export default function UserDetailsPage() {
   const router = useRouter();
   const total = 5;
 
-  const { form, setForm } = useBookingForm();
+  const { form } = useBookingForm();
 
-  // Load plan + price from URL (ONLY on first visit)
+  /* -------------------------------------------------
+      1️⃣ IF NO PLAN SELECTED → BLOCK PAGE
+  --------------------------------------------------*/
   useEffect(() => {
-    if (form.planSlug) return; // prevent override after refresh
-
-    const params = new URLSearchParams(window.location.search);
-    const plan = params.get("plan");
-    const price = params.get("price");
-
-    if (plan) {
-      setForm({
-        planSlug: plan,
-        planName: plan
-          .replace(/-/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
-        planPrice: price || "0",
-      });
+    // Agar user direct URL se aaya ho
+    if (!form.planSlug || !form.planName || !form.planPrice) {
+      router.replace("/services");
     }
-  }, []);
+  }, [form]);
 
+  /* -------------------------------------------------
+      STEP-ID MAPPER
+  --------------------------------------------------*/
   function stepIndexToId(index: number) {
     switch (index) {
       case 1:
@@ -52,7 +46,7 @@ export default function UserDetailsPage() {
       case 4:
         return "lifestyle";
       case 5:
-        return "lifestyle";
+        return "review";
       default:
         return "user-details";
     }
@@ -61,6 +55,9 @@ export default function UserDetailsPage() {
   const stepId = stepIndexToId(internalStep);
   const { validate, getFirstMissingField } = useStepValidator(stepId);
 
+  /* -------------------------------------------------
+      NEXT BUTTON
+  --------------------------------------------------*/
   function next() {
     setError(null);
 
@@ -76,18 +73,24 @@ export default function UserDetailsPage() {
     }
 
     if (internalStep >= total) {
-      router.push("/book/recall"); // 🔥 FIXED
+      router.push("/book/recall");
       return;
     }
 
     setInternalStep((s) => s + 1);
   }
 
+  /* -------------------------------------------------
+      PREV BUTTON
+  --------------------------------------------------*/
   function prev() {
     setError(null);
     if (internalStep > 1) setInternalStep((s) => s - 1);
   }
 
+  /* -------------------------------------------------
+      LABEL NORMALIZER
+  --------------------------------------------------*/
   function toHumanLabel(key: string) {
     const map: Record<string, string> = {
       fullName: "Full name",
@@ -112,19 +115,24 @@ export default function UserDetailsPage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#f9fcfa] to-[#f1f7f3] py-13 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto w-full bg-white rounded-2xl p-5 sm:p-7 shadow-[0_3px_20px_rgba(0,0,0,0.08)] relative">
+        {/* Mini Stepper */}
         <FloatingMiniStepper step={internalStep} total={total} />
 
+        {/* Plan Banner */}
         {form.planName && (
           <div className="mb-6 bg-emerald-50 border border-emerald-200 p-4 rounded-lg text-center sm:text-left">
             <p className="font-semibold text-emerald-900 text-base sm:text-lg">
               Booking: {form.planName}
+              {form.planPackageName ? ` — ${form.planPackageName}` : ""}
             </p>
+
             <p className="text-emerald-700 text-sm sm:text-base">
-              Price: ₹{form.planPrice}
+              Price: {form.planPrice}
             </p>
           </div>
         )}
 
+        {/* Steps */}
         <div className="mb-4">
           {internalStep === 1 && <StepPersonal />}
           {internalStep === 2 && <StepMeasurements />}
@@ -133,12 +141,14 @@ export default function UserDetailsPage() {
           {internalStep === 5 && <ReviewStep />}
         </div>
 
+        {/* Error */}
         {error && (
           <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 p-3 rounded">
             {error}
           </div>
         )}
 
+        {/* Navigation */}
         <div className="flex items-center justify-between mt-4">
           <button
             onClick={prev}
@@ -150,7 +160,7 @@ export default function UserDetailsPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/services")}
               className="px-4 py-2 text-sm sm:text-base text-gray-600"
             >
               Cancel

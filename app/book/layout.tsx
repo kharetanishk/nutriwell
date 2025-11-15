@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import MasterStepper from "./components/MasterStepper";
 import { BookingFormProvider } from "./context/BookingFormContext";

@@ -1,26 +1,71 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { useState, useEffect } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 import PlanCard from "@/components/PlanCard";
 import { plans } from "@/app/services/plan";
+import { useBookingForm } from "@/app/book/context/BookingFormContext";
+import { useRouter } from "next/navigation";
+
+const GENERAL_CONSULTATION = {
+  title: "General Consultation",
+  description:
+    "A complete one-on-one session to assess your goals, habits, and lifestyle. Get personalized nutrition advice and a roadmap to start your wellness journey.",
+  price: 1000,
+};
+
+const TYPING_INTERVAL_MS = 25;
 
 export default function ServicesPage() {
   const [typedText, setTypedText] = useState("");
+  const prefersReducedMotion = useReducedMotion();
+  const { setForm, resetForm } = useBookingForm();
+  const router = useRouter();
+
   const fullText =
     "Explore our core consultation service designed to guide your journey towards balanced nutrition and wellness.";
 
+  /* -----------------------------------------
+        TYPEWRITER EFFECT
+  -----------------------------------------*/
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setTypedText(fullText);
+      return;
+    }
+
     let index = 0;
     const interval = setInterval(() => {
+      index += 1;
       setTypedText(fullText.slice(0, index));
-      index++;
-      if (index > fullText.length) clearInterval(interval);
-    }, 25);
-    return () => clearInterval(interval);
-  }, []);
 
+      if (index >= fullText.length) clearInterval(interval);
+    }, TYPING_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [fullText, prefersReducedMotion]);
+
+  /* -----------------------------------------
+        FIXED: General Consultation Handler
+  -----------------------------------------*/
+  function handleGeneralConsultation() {
+    resetForm();
+
+    setForm({
+      planSlug: "general-consultation",
+      planName: "General Consultation",
+      planPrice: "₹1,000",
+      planPriceRaw: 1000,
+      planPackageName: null,
+      planPackageDuration: null,
+    });
+
+    router.push("/book/user-details");
+  }
+
+  /* -----------------------------------------
+        UI
+  -----------------------------------------*/
   return (
     <main
       className="
@@ -33,7 +78,7 @@ export default function ServicesPage() {
         bg-gradient-to-b from-[#f9fcfa] via-[#f8fdfb] to-[#f6fbf9]
       "
     >
-      {/* --- Background Glow --- */}
+      {/* Background Glow */}
       <motion.div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10"
@@ -46,9 +91,8 @@ export default function ServicesPage() {
         <div className="absolute bottom-10 right-1/4 h-56 w-56 rounded-full bg-[#fef3e6]/60 blur-3xl" />
       </motion.div>
 
-      {/* --- Content --- */}
       <div className="max-w-7xl mx-auto w-full relative z-10">
-        {/* --- Page Heading --- */}
+        {/* Heading */}
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -58,7 +102,7 @@ export default function ServicesPage() {
           Services
         </motion.h1>
 
-        {/* --- Typing Animation Subtitle --- */}
+        {/* Subtitle */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -66,14 +110,16 @@ export default function ServicesPage() {
           className="text-slate-600 mb-14 text-base sm:text-lg max-w-3xl mx-auto md:mx-0 text-center md:text-left font-medium"
         >
           {typedText}
-          <motion.span
-            animate={{ opacity: [1, 0] }}
-            transition={{ repeat: Infinity, duration: 0.8 }}
-            className="inline-block w-[6px] h-[20px] bg-[#7fb77e] ml-1 align-middle"
-          ></motion.span>
+          {!prefersReducedMotion && (
+            <motion.span
+              animate={{ opacity: [1, 0] }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
+              className="inline-block w-[6px] h-[20px] bg-[#7fb77e] ml-1 align-middle"
+            />
+          )}
         </motion.p>
 
-        {/* --- General Consultation --- */}
+        {/* General Consultation Banner */}
         <motion.div
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
@@ -100,21 +146,22 @@ export default function ServicesPage() {
         >
           <div className="flex-1">
             <h2 className="text-2xl font-semibold text-slate-900">
-              General Consultation
+              {GENERAL_CONSULTATION.title}
             </h2>
+
             <p className="text-slate-600 mt-2 text-sm sm:text-base leading-relaxed">
-              A complete one-on-one session to assess your goals, habits, and
-              lifestyle. Get personalized nutrition advice and a roadmap to
-              start your wellness journey.
+              {GENERAL_CONSULTATION.description}
             </p>
+
             <p className="text-[#318a63] text-lg sm:text-xl font-bold mt-4">
-              ₹1,000
+              ₹{GENERAL_CONSULTATION.price.toLocaleString("en-IN")}
             </p>
           </div>
 
           <div className="mt-5 md:mt-0 flex justify-center md:justify-end">
-            <Link
-              href="/book/user-details?plan=general-consultation&price=1000"
+            <button
+              onClick={handleGeneralConsultation}
+              aria-label="Book general consultation appointment"
               className="
                 inline-block 
                 rounded-full 
@@ -132,11 +179,11 @@ export default function ServicesPage() {
               "
             >
               Book Appointment
-            </Link>
+            </button>
           </div>
         </motion.div>
 
-        {/* --- Plans Section --- */}
+        {/* Plans Section */}
         <section className="mt-10 sm:mt-16 relative z-[1000]">
           <motion.h2
             initial={{ opacity: 0, y: 25 }}
@@ -147,31 +194,36 @@ export default function ServicesPage() {
             Our Nutrition & Wellness Plans
           </motion.h2>
 
-          {/* --- Responsive 2-column Grid --- */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="
-              grid 
-              grid-cols-1 
-              md:grid-cols-2 
-              gap-10 
-              justify-items-center
-            "
-          >
-            {plans.map((plan, i) => (
-              <motion.div
-                key={plan.slug}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="w-full max-w-lg"
-              >
-                <PlanCard {...plan} />
-              </motion.div>
-            ))}
-          </motion.div>
+          {plans.length === 0 ? (
+            <p className="text-center text-slate-500">
+              Plans are currently unavailable. Please check back soon.
+            </p>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="
+                grid 
+                grid-cols-1 
+                md:grid-cols-2 
+                gap-10 
+                justify-items-center
+              "
+            >
+              {plans.map((plan, i) => (
+                <motion.div
+                  key={plan.slug}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  className="w-full max-w-lg"
+                >
+                  <PlanCard {...plan} />
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
         </section>
       </div>
     </main>

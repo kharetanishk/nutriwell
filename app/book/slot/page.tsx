@@ -1,23 +1,46 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Video, MapPin, Clock } from "lucide-react";
 
 export default function SlotPage() {
-  const { setForm } = useBookingForm();
+  const { form, setForm } = useBookingForm();
   const router = useRouter();
 
+  /* -------------------------------------------------
+      1️⃣ HARD BLOCK DIRECT ACCESS
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (!form.planSlug) {
+      router.replace("/services");
+    }
+  }, [form.planSlug]);
+
+  /* -------------------------------------------------
+      SLOT STATE
+  -------------------------------------------------- */
   const [mode, setMode] = useState<"In-person" | "Online">("In-person");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
 
-  /* SLOT LISTS ------------------------ */
+  /* -------------------------------------------------
+      RESTORE MODE IF ALREADY SAVED
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (form.appointmentMode) {
+      setMode(form.appointmentMode as "In-person" | "Online");
+    }
+  }, [form.appointmentMode]);
+
+  /* -------------------------------------------------
+      SLOT LISTS
+  -------------------------------------------------- */
   const offlineSlots = [
     "10:00 AM – 10:40 AM",
     "11:00 AM – 11:40 AM",
-    "12:00 PM – 12:40 PM",
+    "12:00 PM – 12:40 AM",
   ];
 
   const onlineSlots = [
@@ -31,17 +54,29 @@ export default function SlotPage() {
 
   const activeSlots = mode === "In-person" ? offlineSlots : onlineSlots;
 
-  /* CALENDAR ------------------------- */
-  const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  /* -------------------------------------------------
+      CALENDAR
+  -------------------------------------------------- */
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
-  const m = currentMonth.getMonth();
+  const [currentMonth, setCurrentMonth] = useState<Date>(today);
+
   const y = currentMonth.getFullYear();
-
+  const m = currentMonth.getMonth();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const startDay = new Date(y, m, 1).getDay(); // 0 = Sunday
-
+  const startDay = new Date(y, m, 1).getDay();
   const monthName = currentMonth.toLocaleString("default", { month: "long" });
+
+  const minMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const maxMonth = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+
+  function isPast(date: Date) {
+    return date < today;
+  }
 
   function isSunday(date: Date) {
     return date.getDay() === 0;
@@ -49,19 +84,33 @@ export default function SlotPage() {
 
   function selectDate(day: number) {
     const d = new Date(y, m, day);
-    if (isSunday(d)) return;
+    d.setHours(0, 0, 0, 0);
+
+    if (isPast(d) || isSunday(d)) return;
+
     setSelectedDate(d);
     setSelectedTime("");
   }
 
-  function changeMonth(dir: "next" | "prev") {
-    const newMonth = new Date(y, m + (dir === "next" ? 1 : -1), 1);
-    setCurrentMonth(newMonth);
+  /* -------------------------------------------------
+      BOUND MONTH SWITCH
+  -------------------------------------------------- */
+  function changeMonth(dir: "prev" | "next") {
+    const next = dir === "next" ? new Date(y, m + 1, 1) : new Date(y, m - 1, 1);
+
+    if (next < minMonth || next > maxMonth) return;
+
+    setCurrentMonth(next);
+    setSelectedDate(null);
+    setSelectedTime("");
   }
 
+  /* -------------------------------------------------
+      CONTINUE → PAYMENT
+  -------------------------------------------------- */
   function onNext() {
     if (!selectedDate || !selectedTime) {
-      alert("Select date & time slot");
+      alert("Please select a date and time.");
       return;
     }
 
@@ -74,145 +123,167 @@ export default function SlotPage() {
     router.push("/book/payment");
   }
 
+  /* -------------------------------------------------
+      UI
+  -------------------------------------------------- */
   return (
-    <main className="max-w-lg mx-auto bg-white rounded-2xl p-5 shadow-md">
-      <h2 className="text-2xl font-semibold mb-4 text-center">
-        Pick a Date & Time
-      </h2>
-
-      {/* MODE TABS (Mobile friendly) */}
-      <div className="flex rounded-xl overflow-hidden border mb-6">
-        <button
-          onClick={() => setMode("In-person")}
-          className={`flex-1 py-3 text-sm font-medium ${
-            mode === "In-person"
-              ? "bg-emerald-600 text-white"
-              : "bg-white text-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-center gap-1">
-            <MapPin size={16} /> Clinic Visit
-          </div>
-        </button>
-
-        <button
-          onClick={() => setMode("Online")}
-          className={`flex-1 py-3 text-sm font-medium ${
-            mode === "Online"
-              ? "bg-emerald-600 text-white"
-              : "bg-white text-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-center gap-1">
-            <Video size={16} /> Virtual Call
-          </div>
-        </button>
-      </div>
-
-      {/* CALENDAR — FULL WIDTH ON MOBILE */}
-      <div className="w-full">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-3">
-          <button onClick={() => changeMonth("prev")}>
-            <ChevronLeft size={20} />
-          </button>
-          <h3 className="font-semibold">
-            {monthName} {y}
-          </h3>
-          <button onClick={() => changeMonth("next")}>
-            <ChevronRight size={20} />
-          </button>
-        </div>
-
-        {/* Week names */}
-        <div className="grid grid-cols-7 text-center text-xs text-slate-500 mb-2">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-            <div key={d}>{d}</div>
-          ))}
-        </div>
-
-        {/* Dates Grid */}
-        <div className="grid grid-cols-7 gap-2 text-center">
-          {Array(startDay === 0 ? 6 : startDay - 1)
-            .fill(null)
-            .map((_, i) => (
-              <div key={i} />
-            ))}
-
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-            const date = new Date(y, m, day);
-            const isSelected =
-              selectedDate?.toDateString() === date.toDateString();
-
-            const disabled = isSunday(date);
-
-            return (
-              <button
-                key={day}
-                onClick={() => selectDate(day)}
-                disabled={disabled}
-                className={`py-2 rounded-lg text-sm transition border
-                  ${
-                    disabled
-                      ? "bg-red-100 text-red-300 cursor-not-allowed"
-                      : isSelected
-                      ? "bg-emerald-600 text-white"
-                      : "bg-white text-slate-700"
-                  }
-                `}
-              >
-                {day}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* TIME SLOTS — EXACT CAL.COM STYLE */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
-          <Clock size={18} /> Available Slots
-        </h3>
-
-        {!selectedDate ? (
-          <p className="text-slate-500 text-sm">Select a date to continue.</p>
-        ) : (
-          <div className="space-y-3">
-            {activeSlots.map((slot) => (
-              <button
-                key={slot}
-                onClick={() => setSelectedTime(slot)}
-                className={`w-full px-4 py-4 rounded-lg border text-left text-sm transition flex items-center justify-between
-                  ${
-                    selectedTime === slot
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "bg-white text-slate-700 border-slate-300"
-                  }
-                `}
-              >
-                {slot}
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              </button>
-            ))}
+    <main className="min-h-screen bg-gradient-to-b from-[#f9fcfa] to-[#f1f7f3] py-10 px-4 flex justify-center">
+      <div className="max-w-lg w-full bg-white rounded-2xl p-5 shadow-md">
+        {/* PLAN BANNER */}
+        {form.planName && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 p-4 rounded-lg">
+            <p className="font-semibold text-emerald-900">
+              Booking: {form.planName}
+              {form.planPackageName ? ` — ${form.planPackageName}` : ""}
+            </p>
+            <p className="text-emerald-700">Price: {form.planPrice}</p>
           </div>
         )}
-      </div>
 
-      {/* Navigation */}
-      <div className="mt-8 flex justify-between">
-        <button
-          onClick={() => router.push("/book/recall")}
-          className="px-4 py-2 border rounded-lg"
-        >
-          ← Back
-        </button>
+        <h2 className="text-2xl font-semibold mb-4 text-center">
+          Pick a Date & Time
+        </h2>
 
-        <button
-          onClick={onNext}
-          className="px-5 py-2 bg-emerald-600 text-white rounded-lg"
-        >
-          Continue →
-        </button>
+        {/* MODE SELECTOR */}
+        <div className="flex rounded-xl overflow-hidden border mb-6">
+          <button
+            onClick={() => setMode("In-person")}
+            className={`flex-1 py-3 text-sm ${
+              mode === "In-person"
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-center gap-1">
+              <MapPin size={16} /> Clinic Visit
+            </div>
+          </button>
+
+          <button
+            onClick={() => setMode("Online")}
+            className={`flex-1 py-3 text-sm ${
+              mode === "Online"
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-center gap-1">
+              <Video size={16} /> Virtual Call
+            </div>
+          </button>
+        </div>
+
+        {/* CALENDAR */}
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <button
+              disabled={currentMonth <= minMonth}
+              onClick={() => changeMonth("prev")}
+              className={currentMonth <= minMonth ? "opacity-30" : ""}
+            >
+              <ChevronLeft size={20} />
+            </button>
+
+            <h3 className="font-semibold">
+              {monthName} {y}
+            </h3>
+
+            <button
+              disabled={currentMonth >= maxMonth}
+              onClick={() => changeMonth("next")}
+              className={currentMonth >= maxMonth ? "opacity-30" : ""}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          {/* WEEK DAYS */}
+          <div className="grid grid-cols-7 text-center text-xs text-slate-500 mb-2">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+
+          {/* DATES */}
+          <div className="grid grid-cols-7 gap-2">
+            {Array(startDay === 0 ? 6 : startDay - 1)
+              .fill(0)
+              .map((_, i) => (
+                <div key={i}></div>
+              ))}
+
+            {Array.from({ length: daysInMonth }, (_, n) => n + 1).map((day) => {
+              const date = new Date(y, m, day);
+              date.setHours(0, 0, 0, 0);
+
+              const disabled = isPast(date) || isSunday(date);
+              const selected =
+                selectedDate?.toDateString() === date.toDateString();
+
+              return (
+                <button
+                  key={day}
+                  disabled={disabled}
+                  onClick={() => selectDate(day)}
+                  className={`py-2 rounded-lg text-sm border transition ${
+                    disabled
+                      ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                      : selected
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-white border-slate-300 hover:bg-emerald-50"
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* TIME SLOTS */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
+            <Clock size={18} /> Available Slots
+          </h3>
+
+          {!selectedDate ? (
+            <p className="text-slate-500 text-sm">Select a date first.</p>
+          ) : (
+            <div className="space-y-3">
+              {activeSlots.map((slot) => (
+                <button
+                  key={slot}
+                  onClick={() => setSelectedTime(slot)}
+                  className={`w-full px-4 py-4 rounded-lg border text-sm flex justify-between transition ${
+                    selectedTime === slot
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-emerald-50"
+                  }`}
+                >
+                  {slot}
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* NAVIGATION */}
+        <div className="mt-8 flex justify-between">
+          <button
+            onClick={() => router.push("/book/recall")}
+            className="px-4 py-2 border rounded-lg text-sm"
+          >
+            ← Back
+          </button>
+
+          <button
+            onClick={onNext}
+            className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm"
+          >
+            Continue →
+          </button>
+        </div>
       </div>
     </main>
   );
