@@ -18,7 +18,7 @@ export default function StepMedical() {
       f.type.startsWith("image/")
     );
 
-    // Show progress animation
+    // Fake small upload progress animation
     setUploadProgress(0);
     let progress = 0;
     const interval = setInterval(() => {
@@ -59,11 +59,13 @@ export default function StepMedical() {
       </h3>
 
       <div className="flex flex-col gap-6">
-        {/* Medical History */}
+        {/* Medical History (Required) */}
         <textarea
           rows={4}
-          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm"
-          placeholder="Medical history (if any)"
+          className={`w-full border rounded-xl px-4 py-3 text-sm shadow-sm 
+             focus:ring-2 focus:ring-emerald-500 
+             ${!form.medicalHistory ? "border-red-500" : "border-gray-300"}`}
+          placeholder="Medical history (required)"
           value={form.medicalHistory || ""}
           onChange={(e) => setForm({ medicalHistory: e.target.value })}
         />
@@ -71,10 +73,10 @@ export default function StepMedical() {
         {/* UPLOAD AREA */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            Upload Medical Reports (Images Only)
+            Upload Medical Reports (optional)
           </label>
 
-          {/* Drag & Drop Area */}
+          {/* Drag & Drop */}
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -103,7 +105,6 @@ export default function StepMedical() {
                 Tap to upload or drag images here
               </div>
 
-              {/* Camera support for mobile */}
               <div className="text-xs text-slate-400">
                 Supports camera · JPG · PNG · HEIC
               </div>
@@ -112,7 +113,7 @@ export default function StepMedical() {
                 id="report-upload"
                 type="file"
                 accept="image/*"
-                capture="environment" /* Opens camera */
+                capture="environment"
                 multiple
                 className="hidden"
                 onChange={onFileChange}
@@ -130,7 +131,7 @@ export default function StepMedical() {
             </div>
           )}
 
-          {/* Thumbnails Preview */}
+          {/* Thumbnails */}
           {form.reports && form.reports.length > 0 && (
             <div className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4">
               {form.reports.map((file, index) => {
@@ -146,7 +147,6 @@ export default function StepMedical() {
                       className="w-full h-24 object-cover"
                     />
 
-                    {/* Remove button */}
                     <button
                       onClick={() => removeImage(index)}
                       className="
@@ -163,15 +163,17 @@ export default function StepMedical() {
           )}
         </div>
 
-        {/* Appointment Concerns */}
+        {/* Appointment Concerns (Optional) */}
         <textarea
           rows={3}
           className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm"
-          placeholder="Appointment concerns…"
+          placeholder="Appointment concerns (optional)"
           value={form.appointmentConcerns || ""}
           onChange={(e) => setForm({ appointmentConcerns: e.target.value })}
         />
       </div>
+
+      {/* NAVIGATION BUTTONS */}
     </div>
   );
 }

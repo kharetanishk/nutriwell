@@ -1,61 +1,130 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
+/* -------------------------------------------------
+    BOOKING FORM TYPE (NULLABLE FIELDS)
+--------------------------------------------------*/
 export type BookingForm = {
-  // Step 1 - Personal
-  fullName?: string;
-  mobile?: string;
-  email?: string;
-  dob?: string; // ISO date
-  age?: number;
-  gender?: string;
-  address?: string;
+  fullName: string | null;
+  mobile: string | null;
+  email: string | null;
+  dob: string | null;
+  age: number | null;
+  gender: string | null;
+  address: string | null;
 
-  // Step 2 - Measurements
-  weight?: string;
-  height?: string;
-  neck?: string;
-  waist?: string;
-  hip?: string;
+  weight: string | null;
+  height: string | null;
+  neck: string | null;
+  waist: string | null;
+  hip: string | null;
 
-  // Step 3 - Medical
-  medicalHistory?: string;
-  reports?: File[]; // uploaded files
-  appointmentConcerns?: string;
+  medicalHistory: string | null;
+  reports?: File[];
+  appointmentConcerns: string | null;
 
-  // Step 4 - Lifestyle
-  bowel?: string;
-  dailyFood?: string;
-  waterIntake?: string;
-  wakeUpTime?: string;
-  sleepTime?: string;
-  sleepQuality?: string;
+  bowel: string | null;
+  dailyFood: string | null;
+  waterIntake: string | null;
+  wakeUpTime: string | null;
+  sleepTime: string | null;
+  sleepQuality: string | null;
 
-  // meta
-  planSlug?: string;
-  planName?: string;
-  planPrice?: string;
+  planSlug: string | null;
+  planName: string | null;
+  planPrice: string | null;
 };
 
+/* -------------------------------------------------
+    INITIAL STATE
+--------------------------------------------------*/
+const initialForm: BookingForm = {
+  fullName: null,
+  mobile: null,
+  email: null,
+  dob: null,
+  age: null,
+  gender: null,
+  address: null,
+
+  weight: null,
+  height: null,
+  neck: null,
+  waist: null,
+  hip: null,
+
+  medicalHistory: null,
+  reports: [],
+  appointmentConcerns: null,
+
+  bowel: null,
+  dailyFood: null,
+  waterIntake: null,
+  wakeUpTime: null,
+  sleepTime: null,
+  sleepQuality: null,
+
+  planSlug: null,
+  planName: null,
+  planPrice: null,
+};
+
+/* -------------------------------------------------
+    CONTEXT TYPE
+--------------------------------------------------*/
 type ContextType = {
   form: BookingForm;
-  setForm: (s: Partial<BookingForm>) => void;
+  setForm: (data: Partial<BookingForm>) => void;
   resetForm: () => void;
 };
 
 const BookingFormContext = createContext<ContextType | undefined>(undefined);
 
+/* -------------------------------------------------
+    PROVIDER WITH LOCAL STORAGE SYNC
+--------------------------------------------------*/
 export function BookingFormProvider({ children }: { children: ReactNode }) {
-  const [form, setFormState] = useState<BookingForm>({});
+  const [form, setFormState] = useState<BookingForm>(initialForm);
+  const [loaded, setLoaded] = useState(false); // hydration-safe flag
 
-  function setForm(partial: Partial<BookingForm>) {
-    setFormState((prev) => ({ ...prev, ...partial }));
+  // 1️⃣ Load data from localStorage on mount (CSR ONLY)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("bookingForm");
+      if (saved) {
+        setFormState(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error("Failed loading saved booking form:", error);
+    }
+    setLoaded(true);
+  }, []);
+
+  // 2️⃣ Save into localStorage whenever form changes
+  useEffect(() => {
+    if (loaded) {
+      localStorage.setItem("bookingForm", JSON.stringify(form));
+    }
+  }, [form, loaded]);
+
+  function setForm(data: Partial<BookingForm>) {
+    setFormState((prev) => ({ ...prev, ...data }));
   }
 
   function resetForm() {
-    setFormState({});
+    setFormState(initialForm);
+    localStorage.removeItem("bookingForm");
   }
+
+  // Avoid hydration mismatch by not rendering children until loaded
+  if (!loaded) return null;
 
   return (
     <BookingFormContext.Provider value={{ form, setForm, resetForm }}>
@@ -64,6 +133,9 @@ export function BookingFormProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/* -------------------------------------------------
+    HOOK
+--------------------------------------------------*/
 export function useBookingForm() {
   const ctx = useContext(BookingFormContext);
   if (!ctx)

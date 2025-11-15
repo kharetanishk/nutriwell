@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { calcAgeFromDOB } from "../utilis/calcAge";
 
+
 export default function StepPersonal() {
   const { form, setForm } = useBookingForm();
 
@@ -11,7 +12,6 @@ export default function StepPersonal() {
     if (!form.dob) return;
     const age = calcAgeFromDOB(form.dob);
     if (age !== undefined) setForm({ age });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.dob]);
 
   return (
@@ -25,12 +25,14 @@ export default function StepPersonal() {
           value={form.fullName || ""}
           onChange={(e) => setForm({ fullName: e.target.value })}
         />
+
         <input
           className="input"
           placeholder="Mobile number"
           value={form.mobile || ""}
           onChange={(e) => setForm({ mobile: e.target.value })}
         />
+
         <input
           className="input"
           placeholder="Email"
@@ -38,6 +40,7 @@ export default function StepPersonal() {
           value={form.email || ""}
           onChange={(e) => setForm({ email: e.target.value })}
         />
+
         <input
           className="input"
           type="date"
@@ -45,12 +48,15 @@ export default function StepPersonal() {
           value={form.dob || ""}
           onChange={(e) => setForm({ dob: e.target.value })}
         />
+
+        {/* AGE should be readOnly */}
         <input
           className="input"
           placeholder="Age"
           value={form.age ?? ""}
-          onChange={(e) => setForm({ age: Number(e.target.value) })}
+          readOnly
         />
+
         <select
           className="input"
           value={form.gender || ""}
@@ -69,6 +75,9 @@ export default function StepPersonal() {
           onChange={(e) => setForm({ address: e.target.value })}
         />
       </div>
+
+      {/* Add this below inputs */}
+     
     </div>
   );
 }
