@@ -21,12 +21,17 @@ const userLinks = [
 ];
 
 const userDropdownVariant: Variants = {
-  hidden: { opacity: 0, y: -10 },
+  hidden: { opacity: 0, y: -20 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.3 },
+    transition: { delay: i * 0.1, type: "spring", stiffness: 300 },
   }),
+  hover: {
+    scale: 1.05,
+    color: "#166534",
+    transition: { type: "spring", stiffness: 400, damping: 25 },
+  },
 };
 
 const navLinkVariant: Variants = {
@@ -175,7 +180,7 @@ export default function Navbar() {
                           href={link.href}
                           onClick={() => setUserMenuOpen(false)}
                           className="block px-4 py-2 text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 
-                       transition text-[15px] font-medium"
+                       transition text-[15px] font-medium "
                         >
                           {link.label}
                         </Link>
@@ -242,7 +247,7 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="fixed top-[64px] left-0 right-0 md:hidden flex flex-col items-center gap-4 py-6 
+              className="fixed top-[64px] left-0 right-0 md:hidden flex flex-col w-full items-center gap-4 py-6 
                    border-t border-[#dfe7dd] bg-white/95 backdrop-blur-md z-[450] rounded-b-2xl shadow-xl"
             >
               {userLinks.map((link, i) => (
@@ -257,7 +262,7 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     onClick={() => setUserMenuOpen(false)}
-                    className="block text-slate-700 hover:text-emerald-700 text-lg font-medium"
+                    className="block text-slate-700 hover:text-emerald-700 text-lg font-medium border-b cursor-pointer"
                   >
                     {link.label}
                   </Link>
@@ -269,17 +274,18 @@ export default function Navbar() {
       </AnimatePresence>
 
       {/* MOBILE MENU OVERLAY + MENU */}
+      {/* MOBILE MENU OVERLAY + MENU */}
       <AnimatePresence>
         {menuOpen && (
           <>
-            {/* Dim Background */}
+            {/* Dim Background (same as user overlay) */}
             <motion.div
               key="overlay"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="fixed inset-0 bg-emerald-900/30 z-[400]"
+              className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-[450]"
               onClick={() => setMenuOpen(false)}
             />
 
@@ -290,7 +296,7 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="fixed top-[64px] left-0 right-0 md:hidden flex flex-col items-center gap-4 py-6 border-t border-[#dfe7dd] bg-white/95 backdrop-blur-md z-[450] rounded-b-2xl shadow-xl"
+              className="fixed top-[64px] left-0 right-0 md:hidden flex flex-col items-center gap-4 py-6 border-t border-[#dfe7dd] bg-white/95 backdrop-blur-md z-[460] rounded-b-2xl shadow-xl"
             >
               {navLinks.map((link, i) => (
                 <motion.div
@@ -307,7 +313,7 @@ export default function Navbar() {
                         handleScrollOrRedirect(link.label.toLowerCase());
                         setMenuOpen(false);
                       }}
-                      className="block text-slate-700 hover:text-emerald-700 text-lg font-medium"
+                      className="block text-slate-700 hover:text-emerald-700 text-lg font-medium border-b"
                     >
                       {link.label}
                     </button>
@@ -315,7 +321,7 @@ export default function Navbar() {
                     <Link
                       href={link.href}
                       onClick={() => setMenuOpen(false)}
-                      className="block text-slate-700 hover:text-emerald-700 text-lg font-medium"
+                      className="block text-slate-700 hover:text-emerald-700 text-lg font-medium border-b"
                     >
                       {link.label}
                     </Link>
