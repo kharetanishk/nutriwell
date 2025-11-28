@@ -48,6 +48,8 @@ export type BookingForm = {
   wakeUpTime: string | null;
   sleepTime: string | null;
   sleepQuality: string | null;
+  foodPreference: string | null;
+  allergiesIntolerance: string | null;
 
   // Plan / service
   planSlug: string | null;
@@ -99,6 +101,8 @@ const initialForm: BookingForm = {
   wakeUpTime: null,
   sleepTime: null,
   sleepQuality: null,
+  foodPreference: null,
+  allergiesIntolerance: null,
 
   planSlug: null,
   planName: null,

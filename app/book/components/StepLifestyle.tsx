@@ -58,6 +58,43 @@ export default function StepLifestyle({
           )}
         </div>
 
+        {/* Food Preference */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Food preference
+          </label>
+          <select
+            className="input"
+            value={form.foodPreference || ""}
+            onChange={(e) => setForm({ foodPreference: e.target.value })}
+          >
+            <option value="">Select</option>
+            <option>Vegetarian</option>
+            <option>Non-Vegetarian</option>
+            <option>Egg & Veg</option>
+          </select>
+
+          {error(form.foodPreference) && (
+            <p className="text-xs text-red-600 mt-1">
+              Please choose your food preference.
+            </p>
+          )}
+        </div>
+
+        {/* Allergies / Food Intolerance */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Allergies / food intolerances (if any)
+          </label>
+          <textarea
+            rows={2}
+            className="input"
+            placeholder="e.g., lactose, gluten, soya"
+            value={form.allergiesIntolerance || ""}
+            onChange={(e) => setForm({ allergiesIntolerance: e.target.value })}
+          />
+        </div>
+
         {/* Water Intake */}
         <div>
           <label className="block text-sm font-medium mb-1">

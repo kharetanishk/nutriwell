@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { ClipboardCheck, Video, HeartPulse } from "lucide-react";
 
 const steps = [
@@ -42,22 +39,14 @@ export default function HowItWorks() {
       className="w-full py-20 px-6 md:px-10 bg-transparent"
     >
       <div className="max-w-6xl mx-auto">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-4xl md:text-5xl font-bold text-center text-slate-900 mb-14"
-        >
+        <h2 className="text-4xl md:text-5xl font-bold text-center text-slate-900 mb-14">
           How It Works
-        </motion.h2>
+        </h2>
 
         <div className="grid md:grid-cols-3 gap-10">
-          {steps.map((step, i) => (
-            <motion.div
+          {steps.map((step) => (
+            <div
               key={step.id}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.2, duration: 0.6 }}
               className="bg-white/90 border border-[#dfe7dd] rounded-3xl shadow-(--shadow-soft) hover:shadow-xl transition-shadow p-8 flex flex-col items-start"
             >
               <div className="flex items-center gap-3 mb-4">
@@ -71,7 +60,7 @@ export default function HowItWorks() {
                   <li key={j}>{point}</li>
                 ))}
               </ul>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

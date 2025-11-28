@@ -17,6 +17,7 @@ export default function PlanCard({
   packages,
   terms,
   note,
+  image,
 }: Plan) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
@@ -104,6 +105,8 @@ export default function PlanCard({
         bg-white 
         border border-[#dfe7dd] 
         rounded-3xl 
+        border-1
+        border-green-800
         p-6 sm:p-8 
         shadow-[0_3px_20px_rgba(30,80,60,0.08)] 
         hover:shadow-[0_4px_25px_rgba(30,80,60,0.12)]
@@ -114,6 +117,28 @@ export default function PlanCard({
       "
     >
       <div className="flex flex-col flex-grow">
+        {/* Image Section */}
+        {image && (
+          <div className="relative w-full h-48 sm:h-56 md:h-64 mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50">
+            <img
+              src={image}
+              alt={title}
+              className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+              onError={(e) => {
+                // Fallback to a gradient background if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = "none";
+                if (target.parentElement) {
+                  target.parentElement.className +=
+                    " bg-gradient-to-br from-emerald-100 via-teal-100 to-cyan-100";
+                }
+              }}
+            />
+            {/* Overlay gradient for better text readability if needed */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
+          </div>
+        )}
+
         {/* Title */}
         <h3 className="text-2xl font-semibold text-slate-900 mb-3">{title}</h3>
 

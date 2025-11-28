@@ -15,6 +15,7 @@ const GENERAL_CONSULTATION = {
   description:
     "A complete one-on-one session to assess your goals, habits, and lifestyle. Get personalized nutrition advice and a roadmap to start your wellness journey.",
   price: 1000,
+  image: "/images/services/general-consult.png",
 };
 
 const TYPING_INTERVAL_MS = 25;
@@ -106,7 +107,7 @@ export default function ServicesPage() {
         px-5 sm:px-8 lg:px-16 
         overflow-x-hidden 
         overflow-y-visible 
-        bg-gradient-to-b from-[#f9fcfa] via-[#f8fdfb] to-[#f6fbf9]
+        bg-linear-to-b from-[#f9fcfa] via-[#f8fdfb] to-[#f6fbf9]
       "
     >
       {/* Background Glow */}
@@ -159,63 +160,84 @@ export default function ServicesPage() {
             bg-white/95 
             border border-[#dfe7dd] 
             rounded-3xl 
-            p-6 sm:p-8 
+            p-0
             mb-20 
             shadow-[0_3px_25px_rgba(30,80,60,0.08)] 
             backdrop-blur-sm 
             w-full 
             max-w-3xl 
             mx-auto 
-            flex flex-col 
-            md:flex-row 
-            md:items-center 
-            md:justify-between 
-            md:gap-8 
+            overflow-hidden
             hover:shadow-[0_4px_30px_rgba(30,80,60,0.12)] 
             transition-all duration-500
           "
         >
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold text-slate-900">
-              {GENERAL_CONSULTATION.title}
-            </h2>
+          {/* Image Section */}
+          {GENERAL_CONSULTATION.image && (
+            <div className="relative w-full h-48 sm:h-56 md:h-64 overflow-hidden bg-linear-to-br from-emerald-50 to-teal-50">
+              <img
+                src={GENERAL_CONSULTATION.image}
+                alt={GENERAL_CONSULTATION.title}
+                className="w-full h-full object-cover  md:object-cover transition-transform duration-500 hover:scale-105"
+                onError={(e) => {
+                  // Fallback to a gradient background if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                  if (target.parentElement) {
+                    target.parentElement.className +=
+                      " bg-linear-to-br from-emerald-100 via-teal-100 to-cyan-100";
+                  }
+                }}
+              />
+              {/* Overlay gradient for better text readability if needed */}
+              <div className="absolute inset-0 bg-linear-to-t from-black/5 to-transparent pointer-events-none" />
+            </div>
+          )}
 
-            <p className="text-slate-600 mt-2 text-sm sm:text-base leading-relaxed">
-              {GENERAL_CONSULTATION.description}
-            </p>
+          {/* Content Section */}
+          <div className="p-6 sm:p-8 flex flex-col md:flex-row md:items-center md:justify-between md:gap-8">
+            <div className="flex-1">
+              <h2 className="text-2xl font-semibold text-slate-900">
+                {GENERAL_CONSULTATION.title}
+              </h2>
 
-            <p className="text-[#318a63] text-lg sm:text-xl font-bold mt-4">
-              ₹{GENERAL_CONSULTATION.price.toLocaleString("en-IN")}
-            </p>
-          </div>
+              <p className="text-slate-600 mt-2 text-sm sm:text-base leading-relaxed">
+                {GENERAL_CONSULTATION.description}
+              </p>
 
-          <div className="mt-5 md:mt-0 flex justify-center md:justify-end">
-            <button
-              onClick={handleGeneralConsultation}
-              aria-label="Book general consultation appointment"
-              className="
-                inline-block 
-                rounded-full 
-                bg-gradient-to-r 
-                from-[#7fb77e] via-[#6fbb9c] to-[#64a0c8] 
-                text-white 
-                px-8 py-3 
-                text-sm sm:text-base 
-                font-semibold 
-                shadow-md 
-                hover:shadow-lg 
-                hover:scale-[1.03] 
-                active:scale-95 
-                transition-all duration-300
-              "
-            >
-              Book Appointment
-            </button>
+              <p className="text-[#318a63] text-lg sm:text-xl font-bold mt-4">
+                ₹{GENERAL_CONSULTATION.price.toLocaleString("en-IN")}
+              </p>
+            </div>
+
+            <div className="mt-5 md:mt-0 flex justify-center md:justify-end">
+              <button
+                onClick={handleGeneralConsultation}
+                aria-label="Book general consultation appointment"
+                className="
+                  inline-block 
+                  rounded-full 
+            bg-linear-to-r 
+                  from-[#7fb77e] via-[#6fbb9c] to-[#64a0c8] 
+                  text-white 
+                  px-8 py-3 
+                  text-sm sm:text-base 
+                  font-semibold 
+                  shadow-md 
+                  hover:shadow-lg 
+                  hover:scale-[1.03] 
+                  active:scale-95 
+                  transition-all duration-300
+                "
+              >
+                Book Appointment
+              </button>
+            </div>
           </div>
         </motion.div>
 
         {/* Plans Section */}
-        <section className="mt-10 sm:mt-16 relative z-[1000]">
+        <section className="mt-10 sm:mt-16 relative z-1000">
           <motion.h2
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
@@ -240,6 +262,7 @@ export default function ServicesPage() {
                 md:grid-cols-2 
                 gap-10 
                 justify-items-center
+                items-start
               "
             >
               {plans.map((plan, i) => (

@@ -72,6 +72,11 @@ export default function ReviewStep() {
           { label: "Wake Up Time", value: form.wakeUpTime },
           { label: "Sleep Time", value: form.sleepTime },
           { label: "Sleep Quality", value: form.sleepQuality },
+          { label: "Food Preference", value: form.foodPreference },
+          {
+            label: "Allergies / Intolerances",
+            value: form.allergiesIntolerance,
+          },
         ]}
       />
 

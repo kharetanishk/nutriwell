@@ -1,7 +1,7 @@
-"use client";
-
 import Link from "next/link";
 import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
+
+const currentYear = new Date().getFullYear();
 
 export default function Footer() {
   return (
@@ -180,8 +180,7 @@ export default function Footer() {
       {/* Divider */}
       <div className="max-w-6xl mx-auto mt-10 border-t border-[#dfe7dd] pt-6">
         <p className="text-center text-sm text-slate-500">
-          © {new Date().getFullYear()} Anubha's Nutrition Clinic — All rights
-          reserved.
+          © {currentYear} Anubha's Nutrition Clinic — All rights reserved.
         </p>
       </div>
     </footer>
