@@ -54,7 +54,7 @@ export default function SlotPage() {
         
         // Format date as YYYY-MM-DD
         const dateStr = selectedDate.toISOString().split("T")[0];
-        
+
         const fetchedSlots = await getAvailableSlots(dateStr, backendMode);
         setSlots(fetchedSlots);
       } catch (error: any) {

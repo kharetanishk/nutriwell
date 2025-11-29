@@ -166,12 +166,12 @@ export default function RecallPage() {
 
       if (response.success && response.patient?.id) {
         // Update form with the created patient ID
-        setForm({
+    setForm({
           patientId: response.patient.id,
-        });
+    });
 
         toast.success("Patient details saved successfully!");
-        router.push("/book/slot");
+    router.push("/book/slot");
       } else {
         throw new Error(response.message || "Failed to create patient");
       }
