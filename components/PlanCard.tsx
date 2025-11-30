@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import PatientSelectionModal from "@/components/PatientSelectionModal";
 import toast from "react-hot-toast";
+import { createAppointment } from "@/lib/appointment";
 
 export default function PlanCard({
   title,
@@ -82,16 +83,55 @@ export default function PlanCard({
   /* -------------------------------------------------
       HANDLE PATIENT SELECTION
   --------------------------------------------------*/
-  function handlePatientSelected(patientId: string) {
+  async function handlePatientSelected(patientId: string) {
     if (pendingBooking) {
       setIsModalOpen(false);
-      // Set form data with patientId (don't reset to avoid redirect issues)
+
+      // Set form data with patientId
       setForm({
         ...pendingBooking,
         patientId,
       });
-      // Navigate directly to slot selection since patient already exists
-      router.push("/book/slot");
+
+      // Create appointment with PENDING status (similar to recall flow)
+      try {
+        const { createAppointment } = await import("@/lib/appointment");
+        // TODO: For testing purposes, using ₹1 for general-consultation.
+        // This will be changed to use actual plan price from backend after successful testing.
+        const planPrice =
+          pendingBooking.planSlug === "general-consultation"
+            ? 1
+            : pendingBooking.planPriceRaw || 1;
+
+        // planDuration is required - use "40 min" for general consultation if not provided
+        const planDuration = pendingBooking.planPackageDuration || "40 min";
+
+        const appointmentResponse = await createAppointment({
+          patientId,
+          planSlug: pendingBooking.planSlug,
+          planName: pendingBooking.planName,
+          planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+          planDuration: planDuration, // Always provide a duration (required field)
+          planPackageName: pendingBooking.planPackageName || undefined,
+          appointmentMode: "IN_PERSON", // Default, can be changed in slot page
+        });
+
+        // Store appointmentId in form context
+        setForm({
+          ...pendingBooking,
+          patientId,
+          appointmentId: appointmentResponse.data.id,
+        });
+
+        // Navigate directly to slot selection since patient already exists
+        router.push("/book/slot");
+      } catch (error: any) {
+        console.error("Failed to create appointment:", error);
+        toast.error(
+          error?.response?.data?.message ||
+            "Failed to create appointment. Please try again."
+        );
+      }
     }
   }
 

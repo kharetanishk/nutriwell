@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ThemeContextProvider from "@/lib/themeProvider";
 import Providers from "./Providers"; // 🌟 Global Booking Provider Wrapper
+import LogoutAnimation from "@/components/LogoutAnimation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +21,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "NutriWell | Nutrition Doctor",
   description: "Personalized nutrition and wellness care",
+  manifest: "/manifest.json",
+  themeColor: "#10b981",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({
@@ -35,6 +39,7 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeContextProvider>
             <Providers>
+              <LogoutAnimation />
               <Navbar />
               <main className="min-h-screen pt-20">{children}</main>
               <Footer />

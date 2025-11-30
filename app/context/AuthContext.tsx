@@ -20,6 +20,7 @@ interface User {
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
+  loggingOut: boolean;
   login: (user: User) => void;
   logout: () => void;
 }
@@ -27,6 +28,7 @@ interface AuthContextProps {
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   loading: true,
+  loggingOut: false,
   login: () => {},
   logout: () => {},
 });
@@ -34,6 +36,7 @@ const AuthContext = createContext<AuthContextProps>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // ---------------- LOGIN ----------------
   const login = (user: User) => {
@@ -44,15 +47,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ---------------- LOGOUT ----------------
   const logout = useCallback(async () => {
+    setLoggingOut(true);
+
+    // Small delay for animation
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     try {
       await api.post("/auth/logout");
     } catch (err) {
       console.error("Logout error:", err);
     }
 
+    // Clear all auth-related localStorage
     localStorage.removeItem("user");
+    localStorage.removeItem("login_otp_expiry");
+    localStorage.removeItem("bookingForm");
+
     setUser(null);
-    toast("Logged out");
+
+    // Show success toast
+    toast.success("Logged out successfully", {
+      icon: "👋",
+      duration: 2000,
+    });
+
+    // Reset logging out state after animation
+    setTimeout(() => {
+      setLoggingOut(false);
+    }, 500);
   }, []);
 
   // ---------------- FETCH USER FROM /me ----------------
@@ -62,13 +84,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.data.success && res.data.user) {
         setUser(res.data.user);
         localStorage.setItem("user", JSON.stringify(res.data.user));
+      } else {
+        // If API returns success:false, clear user state
+        setUser(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("auth_token");
       }
-    } catch (err) {
-      console.error("Failed to fetch user:", err);
-      // Fall back to localStorage if API fails
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    } catch (err: any) {
+      // Handle 401 specifically - user is not authenticated
+      if (err?.response?.status === 401) {
+        setUser(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("auth_token");
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Auth] User not authenticated (401)");
+        }
+      } else {
+        // For other errors, try to use stored user as fallback
+        if (process.env.NODE_ENV === "development") {
+          console.error("[Auth] Failed to fetch user:", err);
+        }
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (e) {
+            // Invalid stored user, clear it
+            localStorage.removeItem("user");
+          }
+        }
       }
     }
   }, []);
@@ -80,12 +124,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // First, try to fetch from backend
         await fetchUser();
       } catch (err) {
-        console.error("Auth load error:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("[Auth] Load error:", err);
+        }
       }
       setLoading(false);
     };
 
     loadAuth();
+
+    // Listen for logout events from Axios interceptor
+    const handleLogout = () => {
+      setUser(null);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("auth:logout", handleLogout);
+      return () => {
+        window.removeEventListener("auth:logout", handleLogout);
+      };
+    }
   }, [fetchUser]);
 
   return (
@@ -93,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         loading,
+        loggingOut,
         login,
         logout,
       }}

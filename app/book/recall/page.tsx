@@ -3,8 +3,16 @@
 import React, { useEffect, useState } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, UploadCloud, X } from "lucide-react";
 import { createPatient } from "@/lib/patient";
+import {
+  uploadFiles,
+  deleteFile,
+  linkFilesToPatient,
+  UploadedFile,
+} from "@/lib/upload";
+import { createRecall } from "@/lib/recall";
+import { createAppointment } from "@/lib/appointment";
 import toast from "react-hot-toast";
 
 /* -------------------------------
@@ -33,15 +41,30 @@ export default function RecallPage() {
   const { form, setForm } = useBookingForm();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  /* -------------------------------
-     Block access if no plan selected
-  ----------------------------------*/
+  /* -------------------------------------------------
+      BLOCK DIRECT ACCESS - Ensure plan details and patient exist
+  --------------------------------------------------*/
   useEffect(() => {
-    if (!form.planSlug || !form.planName) {
+    // Check if plan details are present (planPackageDuration is optional for general consultation)
+    if (!form.planSlug || !form.planName || !form.planPriceRaw) {
+      toast.error("Please select a plan first");
       router.replace("/services");
+      return;
     }
-  }, [form]);
+
+    // Check if patient exists (required for recall)
+    if (!form.patientId) {
+      toast.error("Please complete the user details form first");
+      router.replace("/book/user-details");
+      return;
+    }
+  }, [form.planSlug, form.planName, form.planPriceRaw, form.patientId, router]);
 
   /* -------------------------------
      Helpers
@@ -102,88 +125,289 @@ export default function RecallPage() {
     setForm({ recallNotes: value });
   }
 
-  async function submitRecall() {
-    // If patientId already exists (user selected existing patient), skip creation
-    if (form.patientId) {
-      router.push("/book/slot");
+  function updateAppointmentConcerns(value: string) {
+    setForm({ appointmentConcerns: value });
+  }
+
+  /* -------------------------------
+     FILE UPLOAD HANDLERS
+  ----------------------------------*/
+  async function handleFileUpload(files: FileList | File[]) {
+    const fileArray = Array.from(files);
+
+    // Validate file types
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+    const invalidFiles = fileArray.filter(
+      (f) => !allowedTypes.includes(f.type.toLowerCase())
+    );
+
+    if (invalidFiles.length > 0) {
+      toast.error("Only JPG, PNG, and JPEG images are allowed");
       return;
     }
 
-    // Validate required fields before creating patient
-    if (
-      !form.fullName ||
-      !form.mobile ||
-      !form.email ||
-      !form.dob ||
-      !form.age ||
-      !form.gender ||
-      !form.address ||
-      !form.weight ||
-      !form.height ||
-      !form.neck ||
-      !form.waist ||
-      !form.hip ||
-      !form.bowel ||
-      !form.waterIntake ||
-      !form.wakeUpTime ||
-      !form.sleepTime ||
-      !form.sleepQuality
-    ) {
-      toast.error("Please complete all required fields in previous steps");
+    // Check if patient exists
+    if (!form.patientId) {
+      toast.error("Please complete the user details form first");
       router.push("/book/user-details");
       return;
     }
 
-    setIsSubmitting(true);
+    setUploadingFiles(true);
+    setError(null);
 
     try {
-      // Map form fields to backend schema
-      const patientData = {
-        name: form.fullName,
-        phone: form.mobile.replace(/\D/g, ""), // Remove non-digits
-        gender: form.gender.toUpperCase(), // MALE, FEMALE, OTHER
-        email: form.email,
-        dateOfBirth: form.dob,
-        age: Number(form.age),
-        address: form.address,
-        weight: Number(form.weight),
-        height: Number(form.height),
-        neck: Number(form.neck),
-        waist: Number(form.waist),
-        hip: Number(form.hip),
-        medicalHistory: form.medicalHistory || undefined,
-        appointmentConcerns: form.appointmentConcerns || undefined,
-        bowelMovement: form.bowel.toUpperCase(), // NORMAL, CONSTIPATION, etc.
-        dailyFoodIntake: form.dailyFood || undefined,
-        dailyWaterIntake: Number(form.waterIntake),
-        wakeUpTime: form.wakeUpTime,
-        sleepTime: form.sleepTime,
-        sleepQuality: form.sleepQuality.toUpperCase(), // NORMAL, IRREGULAR, etc.
-        fileIds: [], // TODO: Handle file uploads if needed
-      };
+      const uploaded = await uploadFiles(fileArray);
 
-      const response = await createPatient(patientData);
+      // Link files to patient if patient exists
+      if (form.patientId && uploaded.length > 0) {
+        const fileIds = uploaded.map((f) => f.id);
+        try {
+          await linkFilesToPatient(form.patientId, fileIds);
+        } catch (err) {
+          // If link fails, files are still uploaded but not linked
+          // This is okay, they can be linked later
+          console.warn("Failed to link files to patient:", err);
+        }
+      }
 
-      if (response.success && response.patient?.id) {
-        // Update form with the created patient ID
-    setForm({
-          patientId: response.patient.id,
+      setUploadedFiles((prev) => [...prev, ...uploaded]);
+      toast.success(`Successfully uploaded ${uploaded.length} file(s)`);
+    } catch (err: any) {
+      console.error("File upload error:", err);
+      const errorMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to upload files. Please try again.";
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) handleFileUpload(e.target.files);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
+    if (e.dataTransfer.files) handleFileUpload(e.dataTransfer.files);
+  }
+
+  async function handleDeleteFile(fileId: string) {
+    setDeletingFileId(fileId);
+    setError(null);
+
+    try {
+      await deleteFile(fileId);
+      setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
+      toast.success("File deleted successfully");
+    } catch (err: any) {
+      console.error("File delete error:", err);
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to delete file. Please try again.";
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setDeletingFileId(null);
+    }
+  }
+
+  async function submitRecall() {
+    console.log("[RECALL SUBMISSION] User clicked 'Save & Continue'");
+    console.log("[RECALL SUBMISSION] Current form state:", {
+      patientId: form.patientId,
+      planSlug: form.planSlug,
+      planName: form.planName,
+      uploadedFilesCount: uploadedFiles.length,
     });
 
-        toast.success("Patient details saved successfully!");
-    router.push("/book/slot");
-      } else {
-        throw new Error(response.message || "Failed to create patient");
+    setError(null);
+
+    // Validate recall entries
+    const validEntries = recallEntries.filter(
+      (e) => e.mealType && e.time && e.foodItem && e.quantity
+    );
+
+    console.log("[RECALL SUBMISSION] Recall entries validation:", {
+      totalEntries: recallEntries.length,
+      validEntries: validEntries.length,
+      entries: validEntries.map((e) => ({
+        mealType: e.mealType,
+        time: e.time,
+        foodItem: e.foodItem,
+        quantity: e.quantity,
+      })),
+    });
+
+    if (validEntries.length === 0) {
+      console.error("[RECALL SUBMISSION] No valid recall entries");
+      setError("Please add at least one complete recall entry");
+      toast.error("Please add at least one complete recall entry");
+      return;
+    }
+
+    // Patient should already be created when user filled the form
+    if (!form.patientId) {
+      console.error("[RECALL SUBMISSION] Patient ID missing");
+      setError("Patient not found. Please go back and complete the form.");
+      toast.error("Patient not found. Please go back and complete the form.");
+      router.push("/book/user-details");
+      return;
+    }
+
+    console.log(
+      "[RECALL SUBMISSION] All validations passed, starting submission"
+    );
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // Validate plan details are present (planPackageDuration is optional for general consultation)
+      if (!form.planSlug || !form.planName || !form.planPriceRaw) {
+        console.error("[RECALL SUBMISSION] Plan details missing");
+        setError("Plan details are missing. Please go back and select a plan.");
+        toast.error(
+          "Plan details are missing. Please go back and select a plan."
+        );
+        return;
       }
+
+      console.log(
+        "[RECALL SUBMISSION] Step 1: Linking uploaded files to patient"
+      );
+      // Link uploaded files to patient if any
+      if (uploadedFiles.length > 0) {
+        try {
+          console.log(
+            "[RECALL SUBMISSION] Linking files:",
+            uploadedFiles.map((f) => f.id)
+          );
+          await linkFilesToPatient(
+            form.patientId,
+            uploadedFiles.map((f) => f.id)
+          );
+          console.log("[RECALL SUBMISSION] Files linked successfully");
+        } catch (fileError: any) {
+          console.error("[RECALL SUBMISSION] File linking error:", fileError);
+          // Don't fail the entire submission if file linking fails
+          console.warn(
+            "[RECALL SUBMISSION] Continuing despite file linking error"
+          );
+        }
+      } else {
+        console.log("[RECALL SUBMISSION] No files to link");
+      }
+
+      console.log(
+        "[RECALL SUBMISSION] Step 2: Creating appointment with PENDING status"
+      );
+
+      // Validate and prepare appointment data
+      // planDuration is required - use "40 min" for general consultation if not provided
+      const planDuration = form.planPackageDuration || "40 min";
+
+      // appointmentMode must be IN_PERSON or ONLINE
+      const appointmentMode =
+        (form.appointmentMode as "IN_PERSON" | "ONLINE") || "IN_PERSON";
+
+      // Create appointment with PENDING status first (to get appointmentId)
+      // TODO: For testing purposes, using ₹1 for general-consultation.
+      // This will be changed to use actual plan price from backend after successful testing.
+      const planPrice =
+        form.planSlug === "general-consultation" ? 1 : form.planPriceRaw || 1;
+
+      const appointmentData = {
+        patientId: form.patientId,
+        planSlug: form.planSlug,
+        planName: form.planName,
+        planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+        planDuration: planDuration, // Always provide a duration (required field)
+        planPackageName: form.planPackageName || undefined,
+        appointmentMode: appointmentMode,
+      };
+
+      console.log("[RECALL SUBMISSION] Appointment data:", {
+        ...appointmentData,
+        planPrice: `₹${appointmentData.planPrice}`,
+      });
+
+      const appointmentResponse = await createAppointment(appointmentData);
+
+      console.log("[RECALL SUBMISSION] Appointment created:", {
+        success: appointmentResponse.success,
+        appointmentId: appointmentResponse.data?.id,
+        status: appointmentResponse.data?.status,
+      });
+
+      if (!appointmentResponse.success || !appointmentResponse.data?.id) {
+        throw new Error("Failed to create appointment");
+      }
+
+      console.log("[RECALL SUBMISSION] Step 3: Creating recall with entries");
+      // Create recall with entries and link to appointment
+      const recallData = {
+        patientId: form.patientId,
+        notes: form.recallNotes || undefined,
+        entries: validEntries.map((e) => ({
+          mealType: e.mealType,
+          time: e.time,
+          foodItem: e.foodItem,
+          quantity: e.quantity,
+          notes: e.notes || undefined,
+        })),
+        appointmentId: appointmentResponse.data.id, // Link recall to appointment
+      };
+
+      console.log("[RECALL SUBMISSION] Recall data:", {
+        patientId: recallData.patientId,
+        entriesCount: recallData.entries.length,
+        hasNotes: !!recallData.notes,
+        appointmentId: recallData.appointmentId,
+      });
+
+      const recallResponse = await createRecall(recallData);
+
+      console.log("[RECALL SUBMISSION] Recall created:", {
+        success: recallResponse.success,
+        recallId: recallResponse.data?.id,
+      });
+
+      // Store appointmentId in form context for slot selection
+      console.log(
+        "[RECALL SUBMISSION] Storing appointmentId in form context:",
+        appointmentResponse.data.id
+      );
+      setForm({ appointmentId: appointmentResponse.data.id });
+
+      console.log("[RECALL SUBMISSION] All steps completed successfully");
+      toast.success("Recall and appointment saved successfully!");
+      router.push("/book/slot");
     } catch (error: any) {
-      console.error("Failed to create patient:", error);
+      console.error("[RECALL SUBMISSION] Error:", error);
+      console.error("[RECALL SUBMISSION] Error details:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+      });
+
       const errorMessage =
         error?.response?.data?.message ||
+        error?.response?.data?.error ||
         error?.message ||
-        "Failed to save patient details. Please try again.";
+        "Failed to save. Please try again.";
+      setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
+      console.log("🏁 [RECALL SUBMISSION] Submission process completed");
     }
   }
 
@@ -210,128 +434,255 @@ export default function RecallPage() {
 
         {/* Title */}
         <h2 className="text-2xl font-semibold text-emerald-700 mb-2">
-          24-Hour Diet Recall
+          Recall & Medical Information
         </h2>
         <p className="text-sm text-slate-600 mb-6">
-          Add everything you ate and drank in the last 24 hours.
+          Complete your 24-hour diet recall, upload medical reports, and share
+          any appointment concerns.
         </p>
 
-        {/* Add Entry Button */}
-        <button
-          onClick={addEntry}
-          className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:brightness-110"
-        >
-          <Plus className="w-4 h-4" /> Add food entry
-        </button>
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
 
-        {/* Entry Cards */}
-        <div className="space-y-6 mb-8">
-          {recallEntries.map((entry, index) => (
-            <div
-              key={entry.id}
-              className="border border-slate-200 rounded-xl p-4 bg-gray-50"
+        {/* Upload Medical Reports Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            Medical Reports
+          </h3>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Upload Medical Reports (optional)
+          </label>
+
+          {/* Drag & Drop */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            className={`
+              border-2 rounded-xl p-5 text-center transition-all cursor-pointer
+              ${
+                dragActive
+                  ? "border-emerald-600 bg-emerald-50"
+                  : "border-gray-300 bg-white"
+              }
+              ${uploadingFiles ? "opacity-50 pointer-events-none" : ""}
+            `}
+          >
+            <label
+              htmlFor="report-upload"
+              className="flex flex-col items-center gap-2 cursor-pointer"
             >
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  Entry {index + 1}
-                </h3>
+              {uploadingFiles ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                  <div className="text-sm text-slate-600">Uploading...</div>
+                </>
+              ) : (
+                <>
+                  <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
+                    <UploadCloud size={22} />
+                  </span>
+                  <div className="text-sm text-slate-600">
+                    Tap to upload or drag images here
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    JPG, PNG, JPEG only · Max 10MB per file
+                  </div>
+                </>
+              )}
 
-                <button
-                  onClick={() => deleteEntry(entry.id)}
-                  className="flex items-center gap-1 text-red-500 text-xs hover:text-red-600"
+              <input
+                id="report-upload"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png"
+                multiple
+                className="hidden"
+                onChange={onFileChange}
+                disabled={uploadingFiles}
+              />
+            </label>
+          </div>
+
+          {/* Uploaded Files Preview */}
+          {uploadedFiles.length > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4">
+              {uploadedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="relative group rounded-lg overflow-hidden border"
                 >
-                  <Trash2 className="w-3 h-3" />
-                  Remove
-                </button>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {/* Meal Type */}
-                <div>
-                  <label className="text-xs font-medium text-slate-600">
-                    Meal type
-                  </label>
-                  <select
-                    className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={entry.mealType}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "mealType", e.target.value)
-                    }
+                  <img
+                    src={file.url}
+                    alt={file.fileName}
+                    className="w-full h-24 object-cover"
+                  />
+                  <button
+                    onClick={() => handleDeleteFile(file.id)}
+                    disabled={deletingFileId === file.id}
+                    className="absolute top-1 right-1 bg-black/50 hover:bg-black text-white p-1 rounded-full transition disabled:opacity-50"
                   >
-                    <option value="">Select meal type</option>
-                    {MEAL_TYPES.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    {deletingFileId === file.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <X size={14} />
+                    )}
+                  </button>
                 </div>
-
-                {/* Time */}
-                <div>
-                  <label className="text-xs font-medium text-slate-600">
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={entry.time}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "time", e.target.value)
-                    }
-                  />
-                </div>
-
-                {/* Food Item */}
-                <div>
-                  <label className="text-xs font-medium text-slate-600">
-                    Food item
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Poha"
-                    className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={entry.foodItem}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "foodItem", e.target.value)
-                    }
-                  />
-                </div>
-
-                {/* Quantity */}
-                <div>
-                  <label className="text-xs font-medium text-slate-600">
-                    Quantity / portion
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 1 bowl"
-                    className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={entry.quantity}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "quantity", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Entry Notes */}
-              <div className="mt-3">
-                <label className="text-xs font-medium text-slate-600">
-                  Notes (optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Anything special about this intake?"
-                  className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  value={entry.notes ?? ""}
-                  onChange={(e) =>
-                    updateEntry(entry.id, "notes", e.target.value)
-                  }
-                />
-              </div>
+              ))}
             </div>
-          ))}
+          )}
+        </div>
+
+        {/* Appointment Concerns Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            Appointment Concerns
+          </h3>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Share Your Concerns (optional)
+          </label>
+          <textarea
+            rows={3}
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
+            placeholder="Share any concerns or questions you have for your appointment"
+            value={form.appointmentConcerns || ""}
+            onChange={(e) => updateAppointmentConcerns(e.target.value)}
+          />
+        </div>
+
+        {/* Diet Recall Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">
+            24-Hour Diet Recall
+          </h3>
+          <p className="text-sm text-slate-600 mb-4">
+            Add everything you ate and drank in the last 24 hours.
+          </p>
+
+          {/* Add Entry Button */}
+          <button
+            onClick={addEntry}
+            className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:brightness-110"
+          >
+            <Plus className="w-4 h-4" /> Add food entry
+          </button>
+
+          {/* Entry Cards */}
+          <div className="space-y-6 mb-8">
+            {recallEntries.map((entry, index) => (
+              <div
+                key={entry.id}
+                className="border border-slate-200 rounded-xl p-4 bg-gray-50"
+              >
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    Entry {index + 1}
+                  </h3>
+
+                  <button
+                    onClick={() => deleteEntry(entry.id)}
+                    className="flex items-center gap-1 text-red-500 text-xs hover:text-red-600"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove
+                  </button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {/* Meal Type */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">
+                      Meal type
+                    </label>
+                    <select
+                      className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={entry.mealType}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "mealType", e.target.value)
+                      }
+                    >
+                      <option value="">Select meal type</option>
+                      {MEAL_TYPES.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Time */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">
+                      Time
+                    </label>
+                    <input
+                      type="time"
+                      className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={entry.time}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "time", e.target.value)
+                      }
+                    />
+                  </div>
+
+                  {/* Food Item */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">
+                      Food item
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Poha"
+                      className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={entry.foodItem}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "foodItem", e.target.value)
+                      }
+                    />
+                  </div>
+
+                  {/* Quantity */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600">
+                      Quantity / portion
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 1 bowl"
+                      className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={entry.quantity}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "quantity", e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Entry Notes */}
+                <div className="mt-3">
+                  <label className="text-xs font-medium text-slate-600">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Anything special about this intake?"
+                    className="w-full mt-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                    value={entry.notes ?? ""}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "notes", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* UNIVERSAL NOTES SECTION */}

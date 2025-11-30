@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { createOrder, verifyPayment } from "@/lib/payment";
+import { Loader2, CheckCircle, XCircle, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
 
 declare global {
@@ -17,165 +16,106 @@ declare global {
 export default function PaymentPage() {
   const { form, resetForm } = useBookingForm();
   const router = useRouter();
-
+  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
-
-  // Load Razorpay script
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // Check if Razorpay is already loaded
-    if (window.Razorpay) {
-      setRazorpayLoaded(true);
-      return;
-    }
-
-    // Check if script already exists
-    const existingScript = document.querySelector(
-      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
-    );
-    if (existingScript) {
-      // Wait a bit for script to load
-      const checkInterval = setInterval(() => {
-        if (window.Razorpay) {
-          setRazorpayLoaded(true);
-          clearInterval(checkInterval);
-        }
-      }, 100);
-
-      return () => clearInterval(checkInterval);
-    }
-
-    // Load Razorpay script
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => {
-      if (window.Razorpay) {
-        setRazorpayLoaded(true);
-      } else {
-        toast.error("Razorpay failed to initialize");
-      }
-    };
-    script.onerror = () => {
-      toast.error("Failed to load payment gateway");
-    };
-    document.body.appendChild(script);
-  }, []);
+  const [orderCreated, setOrderCreated] = useState(false);
+  const [isRazorpayReady, setIsRazorpayReady] = useState(false);
+  const razorpayLoaded = useRef(false);
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS
   -------------------------------------------------- */
   useEffect(() => {
-    const invalid =
-      !form.planSlug ||
-      !form.planName ||
-      !form.planPrice ||
-      !form.appointmentDate ||
-      !form.appointmentTime ||
-      !form.appointmentMode;
-
-    if (invalid) {
-      router.replace("/book/user-details");
+    if (!form.appointmentId || !form.slotId || !form.planSlug) {
+      toast.error("Please complete the booking process first");
+      router.replace("/services");
+      return;
     }
-  }, [form]);
+  }, [form.appointmentId, form.slotId, form.planSlug, router]);
 
   /* -------------------------------------------------
-      DATE FORMATTER
+      LOAD RAZORPAY SCRIPT
   -------------------------------------------------- */
-  function formatDate(d: string | null | undefined) {
-    if (!d) return "";
-    const date = new Date(d);
-    return date.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  }
+  useEffect(() => {
+    if (razorpayLoaded.current) return;
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => {
+      console.log("Razorpay script loaded");
+      razorpayLoaded.current = true;
+      setIsRazorpayReady(true);
+    };
+    script.onerror = () => {
+      console.error("Failed to load Razorpay script");
+      toast.error("Failed to load payment gateway. Please refresh the page.");
+      setIsRazorpayReady(false);
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      // Cleanup on unmount
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, []);
 
   /* -------------------------------------------------
-      PAYMENT HANDLER
+      CREATE ORDER AND INITIATE PAYMENT
   -------------------------------------------------- */
-  async function onPay() {
-    if (processing || success) {
+  async function initiatePayment() {
+    if (!form.appointmentId || !form.slotId || !form.planSlug) {
+      toast.error("Missing booking information. Please go back and try again.");
       return;
     }
 
-    // Check if Razorpay is loaded
-    if (!window.Razorpay) {
-      toast.error("Payment gateway not loaded. Please refresh the page.");
+    if (!isRazorpayReady) {
+      toast.error(
+        "Payment gateway is loading. Please wait a moment and try again."
+      );
       return;
     }
 
-    // Validate required fields
-    if (
-      !form.slotId ||
-      !form.patientId ||
-      !form.planSlug ||
-      !form.appointmentMode ||
-      !form.planPriceRaw
-    ) {
-      toast.error("Missing booking information. Please start over.");
-      router.push("/services");
-      return;
-    }
-
-    setProcessing(true);
+    setLoading(true);
+    setError(null);
 
     try {
-      // Step 1: Create appointment and Razorpay order
-      console.log("Creating order...", {
-        slotId: form.slotId,
-        patientId: form.patientId,
-        planSlug: form.planSlug,
-        appointmentMode: form.appointmentMode,
-      });
+      console.log(
+        "[PAYMENT] Creating order for appointment:",
+        form.appointmentId
+      );
 
+      // Create order using existing appointment
       const orderResponse = await createOrder({
-        slotId: form.slotId,
-        patientId: form.patientId,
-        planSlug: form.planSlug,
-        appointmentMode: form.appointmentMode,
+        appointmentId: form.appointmentId,
       });
-
-      console.log("Order response:", orderResponse);
 
       if (!orderResponse.success || !orderResponse.order) {
         throw new Error(
-          orderResponse.error || "Failed to create order"
+          orderResponse.error || "Failed to create payment order"
         );
       }
 
-      const { order, appointmentId } = orderResponse;
+      const { order } = orderResponse;
+      console.log("[PAYMENT] Order created:", order.id);
 
-      // Step 2: Get Razorpay key from environment
-      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-      console.log("Razorpay key available:", !!razorpayKey);
-      
-      if (!razorpayKey) {
-        throw new Error("Razorpay key not configured. Please contact support.");
-      }
+      setOrderCreated(true);
 
-      // Step 3: Verify Razorpay is available
-      if (!window.Razorpay) {
-        throw new Error("Razorpay SDK not loaded. Please refresh the page.");
-      }
-
-      // Step 4: Configure Razorpay options
+      // Initialize Razorpay checkout
       const options = {
-        key: razorpayKey,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "Nutriwell",
-        description: `Payment for ${form.planName}`,
+        description: form.planName || "Appointment Booking",
         order_id: order.id,
         handler: async function (response: any) {
-          console.log("Payment success response:", response);
+          console.log("[PAYMENT] Payment success response:", response);
+          setProcessing(true);
+
           try {
-            setProcessing(true);
-            
             // Verify payment on backend
             const verifyResponse = await verifyPayment({
               orderId: response.razorpay_order_id,
@@ -184,37 +124,25 @@ export default function PaymentPage() {
             });
 
             if (verifyResponse.success) {
-              // Payment successful
-              setProcessing(false);
-              setSuccess(true);
+              console.log("[PAYMENT] Payment verified successfully");
+              toast.success(
+                "Payment successful! Your appointment is confirmed."
+              );
 
-              // Play success audio
-              try {
-                const audio = new Audio("/success.mp3");
-                audio.play();
-              } catch {}
-
-              // Show confetti
-              const { default: confetti } = await import("canvas-confetti");
-              confetti({
-                particleCount: 150,
-                spread: 65,
-                origin: { y: 0.6 },
-              });
-
-              toast.success("Payment successful! Appointment confirmed.");
-
+              // Reset form and redirect to home
               resetForm();
-
-              setTimeout(() => router.push("/"), 2000);
+              setTimeout(() => {
+                router.push("/");
+              }, 2000);
             } else {
-              throw new Error(verifyResponse.message || verifyResponse.error || "Payment verification failed");
+              throw new Error(
+                verifyResponse.error || "Payment verification failed"
+              );
             }
           } catch (error: any) {
-            console.error("Payment verification error:", error);
+            console.error("[PAYMENT] Payment verification error:", error);
             toast.error(
-              error?.response?.data?.message ||
-                error?.message ||
+              error?.message ||
                 "Payment verification failed. Please contact support."
             );
             setProcessing(false);
@@ -226,152 +154,158 @@ export default function PaymentPage() {
           contact: form.mobile?.replace(/\D/g, "") || "",
         },
         theme: {
-          color: "#10b981", // Emerald color
+          color: "#10b981", // emerald-600
         },
         modal: {
           ondismiss: function () {
-            console.log("Payment modal dismissed");
+            console.log("[PAYMENT] Payment modal dismissed");
+            toast.error("Payment cancelled");
             setProcessing(false);
-            toast("Payment cancelled");
           },
         },
       };
 
-      console.log("Opening Razorpay checkout with options:", {
-        key: razorpayKey.substring(0, 10) + "...",
-        amount: options.amount,
-        order_id: options.order_id,
-      });
-
-      // Step 5: Open Razorpay checkout
       const razorpay = new window.Razorpay(options);
-      
+
       razorpay.on("payment.failed", function (response: any) {
-        console.error("Payment failed:", response);
+        console.error("[PAYMENT] Payment failed:", response);
         toast.error(
           response.error?.description || "Payment failed. Please try again."
         );
         setProcessing(false);
       });
 
-      // Open the Razorpay checkout
       razorpay.open();
-      console.log("Razorpay checkout opened");
-      
-      // Don't set processing to false here - let the handler or modal dismiss handle it
     } catch (error: any) {
-      console.error("Payment error:", error);
+      console.error("[PAYMENT] Payment initiation error:", error);
       toast.error(
         error?.response?.data?.error ||
-          error?.response?.data?.message ||
           error?.message ||
           "Failed to initiate payment. Please try again."
       );
-      setProcessing(false);
+    } finally {
+      setLoading(false);
     }
   }
 
+  const [error, setError] = useState<string | null>(null);
+
+  /* -------------------------------------------------
+      UI RENDER
+  -------------------------------------------------- */
   return (
-    <main className="relative bg-white rounded-2xl p-6 shadow-md min-h-[350px] flex flex-col justify-center">
-      {/* PROCESSING OVERLAY */}
-      <AnimatePresence>
-        {processing && (
-          <motion.div
-            className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md rounded-2xl z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <motion.div className="w-14 h-14 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            <p className="mt-4 text-slate-700 font-medium text-lg">
-              Processing Payment…
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SUCCESS OVERLAY */}
-      <AnimatePresence>
-        {success && (
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center bg-white rounded-2xl z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: [0, 1.3, 1] }}
-              transition={{ duration: 0.9 }}
-              className="w-44 h-44 rounded-full bg-emerald-600 flex items-center justify-center shadow-2xl"
-            >
-              <Check size={110} className="text-white" />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SUMMARY */}
-      <h2 className="text-xl font-semibold mb-4">Payment</h2>
-
-      <div className="mb-4 space-y-1">
-        <p className="text-sm">Plan: {form.planName}</p>
-
-        {form.planPackageName && (
-          <p className="text-sm">Package: {form.planPackageName}</p>
-        )}
-
-        <p className="text-sm">Mode: {form.appointmentMode}</p>
-
-        <p className="text-sm">
-          Date:{" "}
-          <span className="font-medium">
-            {formatDate(form.appointmentDate)}
-          </span>
-        </p>
-
-        <p className="text-sm">Time: {form.appointmentTime}</p>
-
-        <p className="text-lg font-bold text-emerald-700">
-          Price: {form.planPrice}
-        </p>
-      </div>
-
-      <button
-        onClick={onPay}
-        disabled={processing || success}
-        className="px-6 py-3 bg-emerald-600 text-white rounded-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-      >
-        {processing ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          "Pay Now"
-        )}
-      </button>
-
-      {!razorpayLoaded && (
-        <p className="text-xs text-slate-500 mt-2 text-center">
-          Loading payment gateway...
-        </p>
-      )}
-
-      {/* Debug info - remove in production */}
-      {process.env.NODE_ENV === "development" && (
-        <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
-          <p>Razorpay Loaded: {razorpayLoaded ? "Yes" : "No"}</p>
-          <p>Razorpay Key: {process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ? "Set" : "Not Set"}</p>
-          <p>Slot ID: {form.slotId || "Missing"}</p>
-          <p>Patient ID: {form.patientId || "Missing"}</p>
+    <main className="min-h-screen bg-gradient-to-b from-[#f9fcfa] to-[#f1f7f3] py-10 px-4 flex justify-center">
+      <div className="max-w-lg w-full bg-white rounded-2xl p-8 shadow-lg">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
+            <CreditCard className="w-12 h-12 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-800 mb-2">
+            Complete Payment
+          </h1>
+          <p className="text-slate-600 text-sm">
+            Secure payment powered by Razorpay
+          </p>
         </div>
-      )}
 
-      <button
-        onClick={() => router.push("/book/slot")}
-        className="mt-4 text-sm text-slate-600"
-      >
-        ← Back to Slot
-      </button>
+        {/* Booking Summary */}
+        {form.planName && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-emerald-900 mb-2">
+              Booking Summary
+            </h3>
+            <div className="space-y-1 text-sm text-emerald-700">
+              <p>
+                <span className="font-medium">Plan:</span> {form.planName}
+              </p>
+              {form.planPackageName && (
+                <p>
+                  <span className="font-medium">Package:</span>{" "}
+                  {form.planPackageName}
+                </p>
+              )}
+              <p>
+                <span className="font-medium">Amount:</span> {form.planPrice}
+              </p>
+              {form.appointmentDate && (
+                <p>
+                  <span className="font-medium">Date:</span>{" "}
+                  {new Date(form.appointmentDate).toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+              )}
+              {form.appointmentTime && (
+                <p>
+                  <span className="font-medium">Time:</span>{" "}
+                  {form.appointmentTime}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 text-red-700">
+              <XCircle className="w-5 h-5" />
+              <p className="text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Button */}
+        <div className="space-y-4">
+          <button
+            onClick={initiatePayment}
+            disabled={loading || processing || !isRazorpayReady}
+            className="w-full py-4 bg-emerald-600 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors"
+          >
+            {processing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing Payment...
+              </>
+            ) : loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Preparing Payment...
+              </>
+            ) : orderCreated ? (
+              <>
+                <CreditCard className="w-5 h-5" />
+                Pay {form.planPrice}
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5" />
+                Pay {form.planPrice}
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={() => router.push("/book/slot")}
+            disabled={processing}
+            className="w-full py-2 text-slate-600 hover:text-slate-800 text-sm disabled:opacity-50"
+          >
+            ← Back to Slot Selection
+          </button>
+        </div>
+
+        {/* Security Note */}
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <p className="text-xs text-slate-500 text-center">
+            🔒 Your payment is secured by Razorpay. We do not store your card
+            details.
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

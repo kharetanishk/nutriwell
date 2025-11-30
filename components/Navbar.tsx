@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/app/context/AuthContext";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, loggingOut } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -99,6 +99,16 @@ export default function Navbar() {
               )
             )}
 
+            {/* Dashboard Link (Admin Only) */}
+            {user?.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                className="text-slate-600 hover:text-emerald-700 font-medium transition-colors"
+              >
+                Dashboard
+              </Link>
+            )}
+
             {/* Hi Name */}
             {user && (
               <span className="text-emerald-700 font-semibold text-[15px]">
@@ -152,13 +162,32 @@ export default function Navbar() {
                         </Link>
 
                         <button
-                          onClick={() => {
-                            logout();
+                          onClick={async () => {
                             setUserMenuOpen(false);
+                            await logout();
+                            window.location.href = "/";
                           }}
-                          className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium"
+                          disabled={loggingOut}
+                          className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                          Logout
+                          {loggingOut ? (
+                            <>
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{
+                                  duration: 1,
+                                  repeat: Infinity,
+                                  ease: "linear",
+                                }}
+                                className="w-4 h-4"
+                              >
+                                <LogOut className="w-4 h-4" />
+                              </motion.div>
+                              Logging out...
+                            </>
+                          ) : (
+                            "Logout"
+                          )}
                         </button>
                       </>
                     )}
@@ -235,6 +264,17 @@ export default function Navbar() {
                 )
               )}
 
+              {/* Dashboard Link (Admin Only - Mobile) */}
+              {user?.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-slate-700 hover:text-emerald-700 text-lg font-medium"
+                >
+                  Dashboard
+                </Link>
+              )}
+
               {/* AUTH OPTIONS */}
               {!user ? (
                 <>
@@ -263,13 +303,32 @@ export default function Navbar() {
                     Profile
                   </Link>
                   <button
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
                       setMenuOpen(false);
+                      await logout();
+                      window.location.href = "/";
                     }}
-                    className="text-lg text-red-600 hover:text-red-700 font-medium"
+                    disabled={loggingOut}
+                    className="text-lg text-red-600 hover:text-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Logout
+                    {loggingOut ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
+                          className="w-4 h-4"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </motion.div>
+                        Logging out...
+                      </>
+                    ) : (
+                      "Logout"
+                    )}
                   </button>
                 </>
               )}

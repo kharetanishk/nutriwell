@@ -25,7 +25,13 @@ const extractError = (err: any): string => {
 };
 
 /* ------------------ TIMER CIRCLE ------------------ */
-const TimerCircle = ({ seconds, total = 60 }) => {
+const TimerCircle = ({
+  seconds,
+  total = 60,
+}: {
+  seconds: number;
+  total?: number;
+}) => {
   const radius = 12;
   const circumference = 2 * Math.PI * radius;
   const progress = ((total - seconds) / total) * circumference;
@@ -85,6 +91,25 @@ export default function Login() {
     useRef<HTMLInputElement | null>(null)
   );
 
+  /* ---------------- RESET STATE WHEN USER LOGS OUT ---------------- */
+  useEffect(() => {
+    // If user becomes null (logged out), reset all login state
+    if (!loading && !user) {
+      setPhone("");
+      setOtp(["", "", "", ""]);
+      setOtpSent(false);
+      setErrors({});
+      setTimer(60);
+      setCanResend(false);
+      setLoadingOtp(false);
+      setLoadingVerify(false);
+      setLoadingResend(false);
+
+      // Clear OTP expiry from localStorage
+      localStorage.removeItem("login_otp_expiry");
+    }
+  }, [user, loading]);
+
   /* ---------------- AUTO-REDIRECT IF ALREADY LOGGED IN ---------------- */
   useEffect(() => {
     if (loading) return;
@@ -93,8 +118,11 @@ export default function Login() {
     router.replace(destination);
   }, [user, loading, router]);
 
-  /* ---------------- RESTORE TIMER ON REFRESH ---------------- */
+  /* ---------------- RESTORE TIMER ON REFRESH (only if user is not logged in) ---------------- */
   useEffect(() => {
+    // Only restore timer if user is not logged in
+    if (user) return;
+
     const expiry = localStorage.getItem("login_otp_expiry");
     if (!expiry) return;
 
@@ -107,20 +135,36 @@ export default function Login() {
     } else {
       setTimer(0);
       setCanResend(true);
+      // Clear expired timer
+      localStorage.removeItem("login_otp_expiry");
     }
-  }, []);
+  }, [user]);
 
   /* ---------------- TIMER HANDLING ---------------- */
   useEffect(() => {
-    if (!otpSent || timer <= 0) return;
+    if (!otpSent || timer <= 0) {
+      if (timer === 0 && otpSent) {
+        setCanResend(true);
+        // Clear expired timer from localStorage
+        localStorage.removeItem("login_otp_expiry");
+      }
+      return;
+    }
 
-    const interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
+    const interval = setInterval(() => {
+      setTimer((prev) => {
+        const newTimer = prev - 1;
+        if (newTimer <= 0) {
+          setCanResend(true);
+          localStorage.removeItem("login_otp_expiry");
+          return 0;
+        }
+        return newTimer;
+      });
+    }, 1000);
+
     return () => clearInterval(interval);
   }, [otpSent, timer]);
-
-  useEffect(() => {
-    if (timer === 0) setCanResend(true);
-  }, [timer]);
 
   /* ---------------- VALIDATE PHONE ---------------- */
   const validatePhone = (val: string) => /^[0-9]{10}$/.test(val);
@@ -210,18 +254,18 @@ export default function Login() {
     try {
       setLoadingVerify(true);
 
-      const res = await verifyLoginOtp({
+      const res = (await verifyLoginOtp({
         phone: phone.replace(/\D/g, ""),
         otp: otpValue,
-      });
+      })) as {
+        user: { id: string; name: string; phone: string; role?: string };
+      };
 
       // AUTO LOGIN
       login(res.user);
 
       toast.success("Logged in successfully!");
-      const destination =
-        (res.user?.role || res.role) === "ADMIN" ? "/admin" : "/";
-      router.push(destination);
+      router.push("/");
     } catch (err: any) {
       toast.error(extractError(err));
       setErrors({ otp: extractError(err) });
@@ -233,6 +277,7 @@ export default function Login() {
   return (
     <div className="h-svh flex items-center justify-center bg-gradient-to-b from-white to-emerald-50/40 p-6">
       <motion.div
+        key={user ? `logged-in-${user.id}` : "logged-out"}
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}

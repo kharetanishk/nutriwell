@@ -151,26 +151,17 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* Google Map */}
+        {/* Find Us */}
         <div>
           <h4 className="font-semibold mb-3 text-slate-900">Find Us</h4>
-
-          <div className="overflow-hidden rounded-xl shadow-md border border-[#dfe7dd]">
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3784.8451797292682!2d73.90861127518981!3d18.445337282633623!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMTjCsDI2JzQzLjIiTiA3M8KwNTQnNDAuMyJF!5e0!3m2!1sen!2sin!4v1763012760730!5m2!1sen!2sin"
-              width="100%"
-              height="220"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            ></iframe>
-          </div>
-
+          <p className="text-slate-600 text-sm mb-3">
+            Visit us at our clinic location in Pune, India.
+          </p>
           <Link
             href="https://maps.app.goo.gl/rH8taHya1obyZsCu9?g_st=aw"
             target="_blank"
-            className="block mt-2 text-emerald-700 text-sm hover:underline"
+            rel="noopener noreferrer"
+            className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 transition-colors"
           >
             Open in Google Maps
           </Link>

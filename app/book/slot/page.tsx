@@ -3,20 +3,70 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Video, MapPin, Clock, Loader2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Video,
+  MapPin,
+  Clock,
+  Loader2,
+} from "lucide-react";
 import { getAvailableSlots, Slot } from "@/lib/slots";
+import { updateAppointmentSlot } from "@/lib/appointment";
 import toast from "react-hot-toast";
 
 export default function SlotPage() {
-  const { form, setForm } = useBookingForm();
+  const { form, setForm, resetForm } = useBookingForm();
   const router = useRouter();
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS
   -------------------------------------------------- */
   useEffect(() => {
-    if (!form.planSlug) router.replace("/services");
-  }, [form.planSlug]);
+    if (!form.planSlug) {
+      router.replace("/services");
+      return;
+    }
+
+    // If patient exists but no appointmentId, create appointment
+    // This handles the case when user selects existing patient from PlanCard
+    if (form.patientId && !form.appointmentId) {
+      const createAppointmentForExistingPatient = async () => {
+        try {
+          const { createAppointment } = await import("@/lib/appointment");
+          // TODO: For testing purposes, using ₹1 for general-consultation.
+          // This will be changed to use actual plan price from backend after successful testing.
+          const planPrice =
+            form.planSlug === "general-consultation"
+              ? 1
+              : form.planPriceRaw || 1;
+
+          // planDuration is required - use "40 min" for general consultation if not provided
+          const planDuration = form.planPackageDuration || "40 min";
+
+          const appointmentResponse = await createAppointment({
+            patientId: form.patientId!,
+            planSlug: form.planSlug!,
+            planName: form.planName!,
+            planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+            planDuration: planDuration, // Always provide a duration (required field)
+            planPackageName: form.planPackageName || undefined,
+            appointmentMode: "IN_PERSON", // Default, can be changed
+          });
+
+          setForm({ appointmentId: appointmentResponse.data.id });
+        } catch (error: any) {
+          console.error(
+            "Failed to create appointment for existing patient:",
+            error
+          );
+          toast.error("Failed to initialize appointment. Please try again.");
+        }
+      };
+
+      createAppointmentForExistingPatient();
+    }
+  }, [form.planSlug, form.patientId, form.appointmentId]);
 
   /* -------------------------------------------------
       SLOT STATE
@@ -26,6 +76,7 @@ export default function SlotPage() {
   const [selectedTime, setSelectedTime] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [updatingSlot, setUpdatingSlot] = useState(false);
 
   useEffect(() => {
     if (form.appointmentMode)
@@ -51,14 +102,39 @@ export default function SlotPage() {
       try {
         // Convert mode to backend format
         const backendMode = mode === "In-person" ? "IN_PERSON" : "ONLINE";
-        
-        // Format date as YYYY-MM-DD
-        const dateStr = selectedDate.toISOString().split("T")[0];
+
+        // Format date as YYYY-MM-DD in local timezone (not UTC)
+        // This ensures we get the correct date regardless of timezone
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+        const day = String(selectedDate.getDate()).padStart(2, "0");
+        const dateStr = `${year}-${month}-${day}`;
+
+        console.log("[SLOT PAGE] Fetching slots:", {
+          date: dateStr,
+          mode: backendMode,
+        });
 
         const fetchedSlots = await getAvailableSlots(dateStr, backendMode);
+
+        console.log("[SLOT PAGE] Received slots from backend:", {
+          count: fetchedSlots.length,
+          slots: fetchedSlots.map((s) => ({
+            id: s.id,
+            label: s.label,
+            mode: s.mode,
+          })),
+        });
+
+        // Only set slots that are admin-created and unbooked (backend already filters this)
         setSlots(fetchedSlots);
       } catch (error: any) {
-        console.error("Failed to fetch slots:", error);
+        console.error("[SLOT PAGE] Failed to fetch slots:", error);
+        console.error("[SLOT PAGE] Error details:", {
+          message: error?.message,
+          response: error?.response?.data,
+          status: error?.response?.status,
+        });
         toast.error(
           error?.response?.data?.message || "Failed to load available slots"
         );
@@ -123,7 +199,7 @@ export default function SlotPage() {
   /* -------------------------------------------------
       CONTINUE HANDLER
   -------------------------------------------------- */
-  function onNext() {
+  async function onNext() {
     if (!selectedDate || !selectedTime) {
       toast.error("Please select both date and time.");
       return;
@@ -137,14 +213,46 @@ export default function SlotPage() {
       return;
     }
 
-    setForm({
-      appointmentMode: mode,
-      appointmentDate: selectedDate.toISOString(),
-      appointmentTime: selectedTime,
-      slotId: selectedSlot.id,
-    });
+    // Update appointment with selected slot if appointmentId exists
+    if (form.appointmentId) {
+      setUpdatingSlot(true);
+      try {
+        await updateAppointmentSlot(form.appointmentId, {
+          slotId: selectedSlot.id,
+        });
 
-    router.push("/book/payment");
+        setForm({
+          appointmentMode: mode,
+          appointmentDate: selectedDate.toISOString(),
+          appointmentTime: selectedTime,
+          slotId: selectedSlot.id,
+        });
+
+        toast.success("Slot selected successfully!");
+
+        // Redirect to payment page
+        router.push("/book/payment");
+      } catch (error: any) {
+        console.error("Failed to update appointment slot:", error);
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.message ||
+          "Failed to update appointment. Please try again.";
+        toast.error(errorMessage);
+      } finally {
+        setUpdatingSlot(false);
+      }
+    } else {
+      // Fallback: just update form (shouldn't happen in normal flow)
+      setForm({
+        appointmentMode: mode,
+        appointmentDate: selectedDate.toISOString(),
+        appointmentTime: selectedTime,
+        slotId: selectedSlot.id,
+      });
+      toast.success("Slot selected successfully!");
+      router.push("/book/payment");
+    }
   }
 
   /* -------------------------------------------------
@@ -273,8 +381,18 @@ export default function SlotPage() {
           {!selectedDate ? (
             <p className="text-slate-500 text-sm">Select a date first.</p>
           ) : loadingSlots ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+            <div className="space-y-3">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-full px-4 py-4 rounded-lg border border-slate-300 bg-white animate-pulse"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-slate-200 rounded w-24"></div>
+                    <div className="w-2 h-2 bg-slate-200 rounded-full"></div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : slots.length === 0 ? (
             <p className="text-slate-500 text-sm">
@@ -315,19 +433,37 @@ export default function SlotPage() {
         </div>
 
         {/* NAVIGATION */}
-        <div className="mt-8 flex justify-between">
-          <button
-            onClick={() => router.push("/book/recall")}
-            className="px-4 py-2 border rounded-lg text-sm"
-          >
-            ← Back
-          </button>
+        <div
+          className={`mt-8 flex ${
+            form.recallEntries && form.recallEntries.length > 0
+              ? "justify-between"
+              : "justify-end"
+          }`}
+        >
+          {/* Only show back button if user came from recall page (has recall entries) */}
+          {/* If user came from existing patient selection, they won't have recall data, so hide back button */}
+          {form.recallEntries && form.recallEntries.length > 0 && (
+            <button
+              onClick={() => router.push("/book/recall")}
+              className="px-4 py-2 border rounded-lg text-sm"
+            >
+              ← Back
+            </button>
+          )}
 
           <button
             onClick={onNext}
-            className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm"
+            disabled={updatingSlot}
+            className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Continue →
+            {updatingSlot ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Continue →"
+            )}
           </button>
         </div>
       </div>

@@ -66,6 +66,7 @@ export type BookingForm = {
 
   slotId: string | null;
   patientId: string | null;
+  appointmentId: string | null; // Store appointment ID after creation
 
   // Recall form data
   recallEntries: RecallEntry[];
@@ -117,6 +118,7 @@ const initialForm: BookingForm = {
 
   slotId: null,
   patientId: null,
+  appointmentId: null,
 
   // NEW recall fields
   recallEntries: [],
