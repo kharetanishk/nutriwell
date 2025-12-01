@@ -3,13 +3,47 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useBookingForm } from "../context/BookingFormContext";
-import { createOrder, verifyPayment } from "@/lib/payment";
+import { createOrder, verifyPayment, getExistingOrder } from "@/lib/payment";
 import { Loader2, CheckCircle, XCircle, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
 
 declare global {
   interface Window {
     Razorpay: any;
+  }
+}
+
+/**
+ * Safe toast wrapper that handles cross-origin frame errors
+ * Defer toast calls to ensure they run in the main window context
+ */
+function safeToast(
+  type: "success" | "error" | "loading",
+  message: string,
+  delay: number = 0
+) {
+  try {
+    // Defer to next event loop to ensure we're in main window context
+    setTimeout(() => {
+      try {
+        if (typeof window !== "undefined" && window.document) {
+          if (type === "success") {
+            toast.success(message);
+          } else if (type === "error") {
+            toast.error(message);
+          } else {
+            toast.loading(message);
+          }
+        }
+      } catch (err) {
+        console.error("[PAYMENT] Toast error (safe):", err);
+        // Fallback: log to console if toast fails
+        console.log(`[PAYMENT] ${type.toUpperCase()}: ${message}`);
+      }
+    }, delay);
+  } catch (err) {
+    console.error("[PAYMENT] Safe toast wrapper error:", err);
+    console.log(`[PAYMENT] ${type.toUpperCase()}: ${message}`);
   }
 }
 
@@ -20,14 +54,18 @@ export default function PaymentPage() {
   const [processing, setProcessing] = useState(false);
   const [orderCreated, setOrderCreated] = useState(false);
   const [isRazorpayReady, setIsRazorpayReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resumingPayment, setResumingPayment] = useState(false);
   const razorpayLoaded = useRef(false);
+  const paymentInitiatedRef = useRef(false); // Prevent double payment initiation
+  const [paymentResponse, setPaymentResponse] = useState<any>(null); // Store payment response for verification
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS
   -------------------------------------------------- */
   useEffect(() => {
     if (!form.appointmentId || !form.slotId || !form.planSlug) {
-      toast.error("Please complete the booking process first");
+      safeToast("error", "Please complete the booking process first");
       router.replace("/services");
       return;
     }
@@ -39,47 +77,256 @@ export default function PaymentPage() {
   useEffect(() => {
     if (razorpayLoaded.current) return;
 
+    // Check if document is available
+    if (typeof window === "undefined" || !window.document) {
+      console.error("[PAYMENT] Window or document not available");
+      return;
+    }
+
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.onload = () => {
-      console.log("Razorpay script loaded");
+      console.log("[PAYMENT] Razorpay script loaded successfully");
       razorpayLoaded.current = true;
       setIsRazorpayReady(true);
     };
     script.onerror = () => {
-      console.error("Failed to load Razorpay script");
-      toast.error("Failed to load payment gateway. Please refresh the page.");
+      console.error("[PAYMENT] Failed to load Razorpay script");
+      safeToast(
+        "error",
+        "Failed to load payment gateway. Please refresh the page."
+      );
       setIsRazorpayReady(false);
+      setError("Payment gateway failed to load. Please refresh the page.");
     };
     document.body.appendChild(script);
 
     return () => {
       // Cleanup on unmount
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
+      try {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      } catch (err) {
+        console.error("[PAYMENT] Script cleanup error:", err);
       }
     };
   }, []);
 
   /* -------------------------------------------------
+      PROCESS PAYMENT VERIFICATION
+      This runs in the main window context after payment
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (!paymentResponse) return;
+
+    const processPayment = async () => {
+      const response = paymentResponse;
+      setPaymentResponse(null); // Clear state
+
+      setProcessing(true);
+      setError(null);
+
+      try {
+        console.log("[PAYMENT] Processing payment verification:", {
+          orderId: response.razorpay_order_id,
+          paymentId: response.razorpay_payment_id,
+          hasSignature: !!response.razorpay_signature,
+        });
+
+        // Verify payment on backend
+        const verifyResponse = await verifyPayment({
+          orderId: response.razorpay_order_id,
+          paymentId: response.razorpay_payment_id,
+          signature: response.razorpay_signature,
+        });
+
+        if (verifyResponse.success) {
+          console.log("[PAYMENT] Payment verified successfully");
+
+          if (verifyResponse.alreadyConfirmed) {
+            safeToast(
+              "success",
+              "Payment already confirmed. Your appointment is confirmed."
+            );
+          } else {
+            safeToast(
+              "success",
+              "Payment successful! Your appointment is confirmed."
+            );
+          }
+
+          // Reset form and redirect to home after a short delay
+          resetForm();
+          setTimeout(() => {
+            router.push("/");
+          }, 2000);
+        } else {
+          throw new Error(
+            verifyResponse.error || "Payment verification failed"
+          );
+        }
+      } catch (error: any) {
+        console.error("[PAYMENT] Payment verification error:", error);
+        const errorMsg =
+          error?.response?.data?.error ||
+          error?.message ||
+          "Payment verification failed. Please contact support with your payment ID.";
+        safeToast("error", errorMsg);
+        setError(errorMsg);
+        setProcessing(false);
+        paymentInitiatedRef.current = false; // Allow retry
+      }
+    };
+
+    processPayment();
+  }, [paymentResponse, router, resetForm]);
+
+  /* -------------------------------------------------
+      INITIALIZE RAZORPAY CHECKOUT
+      Reusable function to start Razorpay payment
+  -------------------------------------------------- */
+  function startRazorpayPayment(order: {
+    id: string;
+    amount: number;
+    currency: string;
+  }) {
+    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (!razorpayKeyId) {
+      throw new Error("Payment gateway not configured");
+    }
+
+    if (!window.Razorpay) {
+      throw new Error("Razorpay SDK not loaded. Please refresh the page.");
+    }
+
+    // Initialize Razorpay checkout
+    const options = {
+      key: razorpayKeyId,
+      amount: order.amount, // Already in paise from Razorpay
+      currency: order.currency || "INR",
+      name: "Nutriwell",
+      description: form.planName || "Appointment Booking",
+      order_id: order.id,
+      handler: function (response: any) {
+        // Store response in state instead of processing immediately
+        // This avoids cross-origin frame access issues
+        console.log("[PAYMENT] Payment success response received:", {
+          orderId: response.razorpay_order_id,
+          paymentId: response.razorpay_payment_id,
+          hasSignature: !!response.razorpay_signature,
+        });
+
+        // Defer state update to ensure we're back in main window context
+        // This will trigger the useEffect that processes the payment
+        setTimeout(() => {
+          try {
+            if (typeof window !== "undefined" && window.document) {
+              setPaymentResponse(response);
+            }
+          } catch (err) {
+            console.error("[PAYMENT] Handler state update error:", err);
+          }
+        }, 100);
+      },
+      prefill: {
+        name: form.fullName || "",
+        email: form.email || "",
+        contact: form.mobile?.replace(/\D/g, "") || "",
+      },
+      theme: {
+        color: "#10b981", // emerald-600
+      },
+      modal: {
+        ondismiss: function () {
+          console.log("[PAYMENT] Payment modal dismissed by user");
+          // Defer state updates to main window context
+          setTimeout(() => {
+            try {
+              if (typeof window !== "undefined" && window.document) {
+                if (!processing) {
+                  safeToast("error", "Payment cancelled", 0);
+                }
+                setProcessing(false);
+                paymentInitiatedRef.current = false; // Allow retry
+              }
+            } catch (err) {
+              console.error("[PAYMENT] Ondismiss error:", err);
+            }
+          }, 0);
+        },
+      },
+    };
+
+    const razorpay = new window.Razorpay(options);
+
+    razorpay.on("payment.failed", function (response: any) {
+      console.error("[PAYMENT] Payment failed:", response);
+      const errorDescription =
+        response.error?.description ||
+        response.error?.reason ||
+        "Payment failed. Please try again.";
+
+      // Defer toast and state updates to main window context
+      setTimeout(() => {
+        try {
+          if (typeof window !== "undefined" && window.document) {
+            safeToast("error", errorDescription, 0);
+            setError(errorDescription);
+            setProcessing(false);
+            paymentInitiatedRef.current = false; // Allow retry
+          }
+        } catch (err) {
+          console.error("[PAYMENT] Payment failed handler error:", err);
+        }
+      }, 0);
+    });
+
+    // Open Razorpay checkout
+    razorpay.open();
+  }
+
+  /* -------------------------------------------------
       CREATE ORDER AND INITIATE PAYMENT
   -------------------------------------------------- */
   async function initiatePayment() {
+    // Prevent double-click/double-initiation
+    if (paymentInitiatedRef.current || loading || processing) {
+      return;
+    }
+
     if (!form.appointmentId || !form.slotId || !form.planSlug) {
-      toast.error("Missing booking information. Please go back and try again.");
+      const errorMsg =
+        "Missing booking information. Please go back and try again.";
+      safeToast("error", errorMsg);
+      setError(errorMsg);
       return;
     }
 
     if (!isRazorpayReady) {
-      toast.error(
-        "Payment gateway is loading. Please wait a moment and try again."
-      );
+      const errorMsg =
+        "Payment gateway is loading. Please wait a moment and try again.";
+      safeToast("error", errorMsg);
+      setError(errorMsg);
       return;
     }
 
+    // Check for Razorpay key
+    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (!razorpayKeyId) {
+      const errorMsg =
+        "Payment gateway not configured. Please contact support.";
+      console.error("[PAYMENT] Razorpay key ID missing");
+      safeToast("error", errorMsg);
+      setError(errorMsg);
+      return;
+    }
+
+    paymentInitiatedRef.current = true;
     setLoading(true);
     setError(null);
+    setResumingPayment(false);
 
     try {
       console.log(
@@ -92,103 +339,77 @@ export default function PaymentPage() {
         appointmentId: form.appointmentId,
       });
 
+      // Check if order already exists error
+      if (
+        !orderResponse.success &&
+        orderResponse.error ===
+          "Payment order already exists for this appointment."
+      ) {
+        console.log(
+          "[PAYMENT] Order already exists, fetching existing order..."
+        );
+        setResumingPayment(true);
+        safeToast("loading", "Resuming your previous payment attempt...", 0);
+
+        // Fetch existing order
+        const existingOrderResponse = await getExistingOrder(
+          form.appointmentId
+        );
+
+        if (existingOrderResponse.success && existingOrderResponse.order) {
+          console.log(
+            "[PAYMENT] Existing order found:",
+            existingOrderResponse.order.id
+          );
+          setOrderCreated(true);
+          setLoading(false);
+          setResumingPayment(false);
+
+          // Resume payment with existing order
+          startRazorpayPayment(existingOrderResponse.order);
+          return;
+        } else {
+          // If we can't get existing order, show error
+          throw new Error(
+            existingOrderResponse.error ||
+              "Failed to resume payment. Please try again."
+          );
+        }
+      }
+
+      // If order creation failed for other reasons
       if (!orderResponse.success || !orderResponse.order) {
         throw new Error(
           orderResponse.error || "Failed to create payment order"
         );
       }
 
+      // Order created successfully
       const { order } = orderResponse;
-      console.log("[PAYMENT] Order created:", order.id);
-
-      setOrderCreated(true);
-
-      // Initialize Razorpay checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      console.log("[PAYMENT] Order created:", {
+        orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        name: "Nutriwell",
-        description: form.planName || "Appointment Booking",
-        order_id: order.id,
-        handler: async function (response: any) {
-          console.log("[PAYMENT] Payment success response:", response);
-          setProcessing(true);
-
-          try {
-            // Verify payment on backend
-            const verifyResponse = await verifyPayment({
-              orderId: response.razorpay_order_id,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-            });
-
-            if (verifyResponse.success) {
-              console.log("[PAYMENT] Payment verified successfully");
-              toast.success(
-                "Payment successful! Your appointment is confirmed."
-              );
-
-              // Reset form and redirect to home
-              resetForm();
-              setTimeout(() => {
-                router.push("/");
-              }, 2000);
-            } else {
-              throw new Error(
-                verifyResponse.error || "Payment verification failed"
-              );
-            }
-          } catch (error: any) {
-            console.error("[PAYMENT] Payment verification error:", error);
-            toast.error(
-              error?.message ||
-                "Payment verification failed. Please contact support."
-            );
-            setProcessing(false);
-          }
-        },
-        prefill: {
-          name: form.fullName || "",
-          email: form.email || "",
-          contact: form.mobile?.replace(/\D/g, "") || "",
-        },
-        theme: {
-          color: "#10b981", // emerald-600
-        },
-        modal: {
-          ondismiss: function () {
-            console.log("[PAYMENT] Payment modal dismissed");
-            toast.error("Payment cancelled");
-            setProcessing(false);
-          },
-        },
-      };
-
-      const razorpay = new window.Razorpay(options);
-
-      razorpay.on("payment.failed", function (response: any) {
-        console.error("[PAYMENT] Payment failed:", response);
-        toast.error(
-          response.error?.description || "Payment failed. Please try again."
-        );
-        setProcessing(false);
       });
 
-      razorpay.open();
+      setOrderCreated(true);
+      setLoading(false);
+
+      // Start Razorpay payment
+      startRazorpayPayment(order);
     } catch (error: any) {
       console.error("[PAYMENT] Payment initiation error:", error);
-      toast.error(
+      const errorMsg =
         error?.response?.data?.error ||
-          error?.message ||
-          "Failed to initiate payment. Please try again."
-      );
-    } finally {
+        error?.message ||
+        "Failed to initiate payment. Please try again.";
+      safeToast("error", errorMsg);
+      setError(errorMsg);
+      paymentInitiatedRef.current = false; // Allow retry
       setLoading(false);
+      setResumingPayment(false);
     }
   }
-
-  const [error, setError] = useState<string | null>(null);
 
   /* -------------------------------------------------
       UI RENDER
@@ -249,11 +470,23 @@ export default function PaymentPage() {
           </div>
         )}
 
+        {/* Resuming Payment Message */}
+        {resumingPayment && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 text-blue-700">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <p className="text-sm">
+                Resuming your previous payment attempt...
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2 text-red-700">
-              <XCircle className="w-5 h-5" />
+              <XCircle className="w-5 h-5 shrink-0" />
               <p className="text-sm">{error}</p>
             </div>
           </div>
@@ -263,7 +496,9 @@ export default function PaymentPage() {
         <div className="space-y-4">
           <button
             onClick={initiatePayment}
-            disabled={loading || processing || !isRazorpayReady}
+            disabled={
+              loading || processing || !isRazorpayReady || resumingPayment
+            }
             className="w-full py-4 bg-emerald-600 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors"
           >
             {processing ? (
@@ -271,15 +506,12 @@ export default function PaymentPage() {
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Processing Payment...
               </>
-            ) : loading ? (
+            ) : loading || resumingPayment ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Preparing Payment...
-              </>
-            ) : orderCreated ? (
-              <>
-                <CreditCard className="w-5 h-5" />
-                Pay {form.planPrice}
+                {resumingPayment
+                  ? "Resuming Payment..."
+                  : "Preparing Payment..."}
               </>
             ) : (
               <>
@@ -291,7 +523,7 @@ export default function PaymentPage() {
 
           <button
             onClick={() => router.push("/book/slot")}
-            disabled={processing}
+            disabled={processing || resumingPayment}
             className="w-full py-2 text-slate-600 hover:text-slate-800 text-sm disabled:opacity-50"
           >
             ← Back to Slot Selection

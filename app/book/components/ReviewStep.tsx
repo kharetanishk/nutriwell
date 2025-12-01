@@ -49,12 +49,6 @@ export default function ReviewStep() {
         items={[
           { label: "Medical History", value: form.medicalHistory },
           {
-            label: "Reports Uploaded",
-            value: form.reports?.length
-              ? `${form.reports.length} image(s)`
-              : "No reports uploaded",
-          },
-          {
             label: "Appointment Concerns",
             value: form.appointmentConcerns,
           },

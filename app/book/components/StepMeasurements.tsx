@@ -5,7 +5,15 @@ import { useBookingForm } from "../context/BookingFormContext";
 import { Eye } from "lucide-react";
 import Image from "next/image";
 
-export default function StepMeasurements() {
+interface StepMeasurementsProps {
+  error?: string | null;
+  fieldErrors?: Record<string, string>;
+}
+
+export default function StepMeasurements({
+  error,
+  fieldErrors,
+}: StepMeasurementsProps) {
   const { form, setForm } = useBookingForm();
   const [showGuide, setShowGuide] = useState(false);
 
@@ -35,21 +43,31 @@ export default function StepMeasurements() {
 
       {/* Input Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input
-          className={`input ${!form.weight ? "border-red-500" : ""}`}
-          placeholder="Weight (kg)"
-          inputMode="numeric"
-          value={form.weight || ""}
-          onChange={(e) => handleNumberInput("weight", e.target.value)}
-        />
+        <div>
+          <input
+            className={`input ${fieldErrors?.weight ? "border-red-500" : ""}`}
+            placeholder="Weight (kg)"
+            inputMode="numeric"
+            value={form.weight || ""}
+            onChange={(e) => handleNumberInput("weight", e.target.value)}
+          />
+          {fieldErrors?.weight && (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.weight}</p>
+          )}
+        </div>
 
-        <input
-          className={`input ${!form.height ? "border-red-500" : ""}`}
-          placeholder="Height (cm)"
-          inputMode="numeric"
-          value={form.height || ""}
-          onChange={(e) => handleNumberInput("height", e.target.value)}
-        />
+        <div>
+          <input
+            className={`input ${fieldErrors?.height ? "border-red-500" : ""}`}
+            placeholder="Height (cm)"
+            inputMode="numeric"
+            value={form.height || ""}
+            onChange={(e) => handleNumberInput("height", e.target.value)}
+          />
+          {fieldErrors?.height && (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.height}</p>
+          )}
+        </div>
 
         <input
           className="input"

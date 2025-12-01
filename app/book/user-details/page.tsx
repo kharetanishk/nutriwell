@@ -19,6 +19,7 @@ import { useStepValidator } from "../context/useStepValidator";
 export default function UserDetailsPage() {
   const [internalStep, setInternalStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
 
   const router = useRouter();
@@ -61,12 +62,14 @@ export default function UserDetailsPage() {
   const validator = stepId ? useStepValidator(stepId) : null;
   const validate = validator?.validate;
   const getFirstMissingField = validator?.getFirstMissingField;
+  const getFieldErrors = validator?.getFieldErrors;
 
   /* -------------------------------------------------
       NEXT BUTTON
   --------------------------------------------------*/
   async function next() {
     setError(null);
+    setFieldErrors({});
 
     // Only validate if validator exists (steps 1–4)
     if (validate) {
@@ -259,33 +262,151 @@ export default function UserDetailsPage() {
 
         // Extract detailed error message
         let errorMessage = "Failed to save patient details. Please try again.";
+        const backendFieldErrors: Record<string, string> = {};
 
-        if (error?.response?.data) {
-          const data = error.response.data;
+        try {
+          if (error?.response?.data) {
+            const data = error.response.data;
 
-          // Handle Zod validation errors
-          if (data.errors && Array.isArray(data.errors)) {
-            const validationErrors = data.errors
-              .map((err: any) => {
-                if (typeof err === "string") return err;
-                if (err.path && err.message) {
-                  return `${err.path.join(".")}: ${err.message}`;
+            // Handle Zod validation errors
+            if (
+              data.errors &&
+              Array.isArray(data.errors) &&
+              data.errors.length > 0
+            ) {
+              // Map backend field names to form field names
+              const fieldNameMap: Record<string, string> = {
+                name: "fullName",
+                phone: "mobile",
+                dateOfBirth: "dob",
+                age: "age",
+                address: "address",
+                weight: "weight",
+                height: "height",
+                medicalHistory: "medicalHistory",
+                bowel: "bowel",
+                dailyFood: "dailyFood",
+                dailyWaterIntake: "waterIntake", // Backend uses dailyWaterIntake, frontend uses waterIntake
+                waterIntake: "waterIntake", // Also handle direct waterIntake for backward compatibility
+                wakeUpTime: "wakeUpTime",
+                sleepTime: "sleepTime",
+                sleepQuality: "sleepQuality",
+              };
+
+              data.errors.forEach((err: any) => {
+                try {
+                  if (typeof err === "string") {
+                    errorMessage = err;
+                  } else if (err.path && err.message) {
+                    // Handle both array path and string path
+                    const fieldPath = Array.isArray(err.path)
+                      ? err.path.join(".")
+                      : String(err.path);
+                    // Map backend field names to frontend field names
+                    const formFieldName =
+                      fieldNameMap[fieldPath] || fieldPath.toLowerCase();
+                    backendFieldErrors[formFieldName] = err.message;
+                    console.log("[FIELD ERROR MAPPED]", {
+                      backendPath: fieldPath,
+                      frontendField: formFieldName,
+                      message: err.message,
+                    });
+                  } else if (err.message) {
+                    errorMessage = err.message;
+                  }
+                } catch (parseErr) {
+                  console.error(
+                    "[ERROR PARSING] Failed to parse error:",
+                    err,
+                    parseErr
+                  );
                 }
-                return err.message || JSON.stringify(err);
-              })
-              .join(", ");
-            errorMessage = `Validation errors: ${validationErrors}`;
-          } else if (data.message) {
-            errorMessage = data.message;
-          } else if (data.error) {
-            errorMessage = data.error;
+              });
+
+              console.log("[BACKEND FIELD ERRORS]", backendFieldErrors);
+
+              // If we have field-specific errors, set them and navigate to relevant step
+              if (Object.keys(backendFieldErrors).length > 0) {
+                console.log("[SETTING FIELD ERRORS]", backendFieldErrors);
+                setFieldErrors(backendFieldErrors);
+
+                // Determine which step contains the first error field
+                const errorField = Object.keys(backendFieldErrors)[0];
+                const errorFieldLower = errorField.toLowerCase();
+                let targetStep = 1; // Default to step 1
+
+                if (["weight", "height"].includes(errorFieldLower)) {
+                  targetStep = 2;
+                } else if (
+                  errorFieldLower === "medicalhistory" ||
+                  errorFieldLower === "medical_history"
+                ) {
+                  targetStep = 3;
+                } else if (
+                  [
+                    "bowel",
+                    "dailyfood",
+                    "daily_food",
+                    "waterintake",
+                    "water_intake",
+                    "dailywaterintake",
+                    "daily_water_intake",
+                    "wakeuptime",
+                    "wake_up_time",
+                    "sleeptime",
+                    "sleep_time",
+                    "sleepquality",
+                    "sleep_quality",
+                  ].includes(errorFieldLower)
+                ) {
+                  targetStep = 4;
+                }
+
+                console.log("[NAVIGATING TO STEP]", { errorField, targetStep });
+                setInternalStep(targetStep);
+                const errorMessages =
+                  Object.values(backendFieldErrors).join(", ");
+                toast.error(`Please fix: ${errorMessages}`);
+                setError(null); // Clear global error since we're showing field errors
+                setIsCreatingPatient(false);
+                return;
+              }
+
+              // Fallback: show all errors as a single message
+              const validationErrors = data.errors
+                .map((err: any) => {
+                  if (typeof err === "string") return err;
+                  if (err.path && err.message) {
+                    const fieldPath = Array.isArray(err.path)
+                      ? err.path.join(".")
+                      : err.path;
+                    return `${fieldPath}: ${err.message}`;
+                  }
+                  return err.message || JSON.stringify(err);
+                })
+                .join(", ");
+              errorMessage = `Validation errors: ${validationErrors}`;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (data.error) {
+              errorMessage = data.error;
+            }
+          } else if (error?.message) {
+            errorMessage = error.message;
           }
-        } else if (error?.message) {
-          errorMessage = error.message;
+        } catch (parseError) {
+          console.error(
+            "[ERROR HANDLING] Failed to parse error response:",
+            parseError
+          );
+          errorMessage = error?.message || "An unexpected error occurred";
         }
 
-        setError(errorMessage);
-        toast.error(errorMessage);
+        // Always show error message if field errors weren't set
+        if (Object.keys(backendFieldErrors).length === 0) {
+          setError(errorMessage);
+          toast.error(errorMessage);
+        }
       } finally {
         setIsCreatingPatient(false);
       }
@@ -300,6 +421,7 @@ export default function UserDetailsPage() {
   --------------------------------------------------*/
   function prev() {
     setError(null);
+    setFieldErrors({});
     if (internalStep > 1) setInternalStep((s) => s - 1);
   }
 
@@ -348,15 +470,35 @@ export default function UserDetailsPage() {
 
         {/* Steps */}
         <div className="mb-4">
-          {internalStep === 1 && <StepPersonal />}
-          {internalStep === 2 && <StepMeasurements />}
-          {internalStep === 3 && <StepMedical />}
-          {internalStep === 4 && <StepLifestyle />}
+          {internalStep === 1 && (
+            <StepPersonal
+              error={error}
+              fieldErrors={{ ...getFieldErrors?.(), ...fieldErrors }}
+            />
+          )}
+          {internalStep === 2 && (
+            <StepMeasurements
+              error={error}
+              fieldErrors={{ ...getFieldErrors?.(), ...fieldErrors }}
+            />
+          )}
+          {internalStep === 3 && (
+            <StepMedical
+              error={error}
+              fieldErrors={{ ...getFieldErrors?.(), ...fieldErrors }}
+            />
+          )}
+          {internalStep === 4 && (
+            <StepLifestyle
+              error={error}
+              fieldErrors={{ ...getFieldErrors?.(), ...fieldErrors }}
+            />
+          )}
           {internalStep === 5 && <ReviewStep />}
         </div>
 
-        {/* Error */}
-        {error && (
+        {/* Global Error (only show if no field-specific errors) */}
+        {error && !getFieldErrors?.() && (
           <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 p-3 rounded">
             {error}
           </div>

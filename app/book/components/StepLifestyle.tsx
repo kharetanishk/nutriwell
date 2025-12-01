@@ -2,14 +2,22 @@
 
 import { useBookingForm } from "../context/BookingFormContext";
 
-export default function StepLifestyle({
-  showErrors = false,
-}: {
+interface StepLifestyleProps {
+  error?: string | null;
+  fieldErrors?: Record<string, string>;
   showErrors?: boolean;
-}) {
+}
+
+export default function StepLifestyle({
+  error,
+  fieldErrors,
+  showErrors = false,
+}: StepLifestyleProps) {
   const { form, setForm } = useBookingForm();
 
-  const error = (field: any) => showErrors && !field;
+  const hasError = (field: string) => {
+    return showErrors && !form[field as keyof typeof form];
+  };
 
   return (
     <div>
@@ -22,7 +30,7 @@ export default function StepLifestyle({
             Bowel movement
           </label>
           <select
-            className="input"
+            className={`input ${fieldErrors?.bowel ? "border-red-500" : ""}`}
             value={form.bowel || ""}
             onChange={(e) => setForm({ bowel: e.target.value })}
           >
@@ -33,7 +41,10 @@ export default function StepLifestyle({
             <option>Irregular</option>
           </select>
 
-          {error(form.bowel) && (
+          {fieldErrors?.bowel && (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.bowel}</p>
+          )}
+          {hasError("bowel") && !fieldErrors?.bowel && (
             <p className="text-xs text-red-600 mt-1">This field is required.</p>
           )}
         </div>
@@ -45,13 +56,18 @@ export default function StepLifestyle({
           </label>
           <textarea
             rows={3}
-            className="input"
+            className={`input ${
+              fieldErrors?.dailyFood ? "border-red-500" : ""
+            }`}
             placeholder="What do you eat throughout the day?"
             value={form.dailyFood || ""}
             onChange={(e) => setForm({ dailyFood: e.target.value })}
           />
 
-          {error(form.dailyFood) && (
+          {fieldErrors?.dailyFood && (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.dailyFood}</p>
+          )}
+          {hasError("dailyFood") && !fieldErrors?.dailyFood && (
             <p className="text-xs text-red-600 mt-1">
               Please enter your daily food intake.
             </p>
@@ -73,12 +89,6 @@ export default function StepLifestyle({
             <option>Non-Vegetarian</option>
             <option>Egg & Veg</option>
           </select>
-
-          {error(form.foodPreference) && (
-            <p className="text-xs text-red-600 mt-1">
-              Please choose your food preference.
-            </p>
-          )}
         </div>
 
         {/* Allergies / Food Intolerance */}
@@ -101,17 +111,30 @@ export default function StepLifestyle({
             Water intake (liters)
           </label>
           <input
-            className="input"
+            className={`input ${
+              fieldErrors?.waterIntake ? "border-red-500" : ""
+            }`}
             type="number"
             inputMode="decimal"
             placeholder="e.g., 2.5"
             min={0}
             step="0.1"
             value={form.waterIntake || ""}
-            onChange={(e) => setForm({ waterIntake: e.target.value })}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Prevent negative numbers - only allow empty string or non-negative numbers
+              if (value === "" || (value !== "-" && parseFloat(value) >= 0)) {
+                setForm({ waterIntake: value });
+              }
+            }}
           />
 
-          {error(form.waterIntake) && (
+          {fieldErrors?.waterIntake && (
+            <p className="text-xs text-red-600 mt-1">
+              {fieldErrors.waterIntake}
+            </p>
+          )}
+          {hasError("waterIntake") && !fieldErrors?.waterIntake && (
             <p className="text-xs text-red-600 mt-1">
               Enter water intake in liters.
             </p>
@@ -127,12 +150,19 @@ export default function StepLifestyle({
             </label>
             <input
               type="time"
-              className="input"
+              className={`input ${
+                fieldErrors?.wakeUpTime ? "border-red-500" : ""
+              }`}
               value={form.wakeUpTime || ""}
               onChange={(e) => setForm({ wakeUpTime: e.target.value })}
             />
 
-            {error(form.wakeUpTime) && (
+            {fieldErrors?.wakeUpTime && (
+              <p className="text-xs text-red-600 mt-1">
+                {fieldErrors.wakeUpTime}
+              </p>
+            )}
+            {hasError("wakeUpTime") && !fieldErrors?.wakeUpTime && (
               <p className="text-xs text-red-600 mt-1">Select wake up time.</p>
             )}
           </div>
@@ -142,12 +172,19 @@ export default function StepLifestyle({
             <label className="block text-sm font-medium mb-1">Sleep time</label>
             <input
               type="time"
-              className="input"
+              className={`input ${
+                fieldErrors?.sleepTime ? "border-red-500" : ""
+              }`}
               value={form.sleepTime || ""}
               onChange={(e) => setForm({ sleepTime: e.target.value })}
             />
 
-            {error(form.sleepTime) && (
+            {fieldErrors?.sleepTime && (
+              <p className="text-xs text-red-600 mt-1">
+                {fieldErrors.sleepTime}
+              </p>
+            )}
+            {hasError("sleepTime") && !fieldErrors?.sleepTime && (
               <p className="text-xs text-red-600 mt-1">Select sleep time.</p>
             )}
           </div>
@@ -159,7 +196,9 @@ export default function StepLifestyle({
             Sleep quality
           </label>
           <select
-            className="input"
+            className={`input ${
+              fieldErrors?.sleepQuality ? "border-red-500" : ""
+            }`}
             value={form.sleepQuality || ""}
             onChange={(e) => setForm({ sleepQuality: e.target.value })}
           >
@@ -170,7 +209,12 @@ export default function StepLifestyle({
             <option>Insomnia</option>
           </select>
 
-          {error(form.sleepQuality) && (
+          {fieldErrors?.sleepQuality && (
+            <p className="text-xs text-red-600 mt-1">
+              {fieldErrors.sleepQuality}
+            </p>
+          )}
+          {hasError("sleepQuality") && !fieldErrors?.sleepQuality && (
             <p className="text-xs text-red-600 mt-1">This field is required.</p>
           )}
         </div>
