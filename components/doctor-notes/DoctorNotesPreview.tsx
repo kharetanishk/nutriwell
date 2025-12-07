@@ -164,6 +164,13 @@ export default function DoctorNotesPreview({
     );
   }
   console.log("  - Mid Morning:", !!formData.midMorning);
+  if (formData.midMorning) {
+    console.log("  - Mid Morning Keys:", Object.keys(formData.midMorning));
+    console.log(
+      "  - Mid Morning Data:",
+      JSON.stringify(formData.midMorning, null, 2)
+    );
+  }
   console.log("  - Lunch:", !!formData.lunch);
   console.log("  - Mid Day:", !!formData.midDay);
   console.log("  - Evening Snack:", !!formData.eveningSnack);
@@ -361,37 +368,93 @@ export default function DoctorNotesPreview({
                           value={formData.morningIntake.medicines}
                         />
                       </div>
-                      {formData.morningIntake.tea?.checked && (
-                        <FieldDisplay
-                          label="Tea"
-                          value={formData.morningIntake.tea.type}
-                        />
+                      {formData.morningIntake.tea !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            Tea:{" "}
+                            {formData.morningIntake.tea?.checked ? "Yes" : "No"}
+                          </div>
+                          {formData.morningIntake.tea?.checked &&
+                            formData.morningIntake.tea.type && (
+                              <div className="text-sm text-slate-600">
+                                Type: {formData.morningIntake.tea.type}
+                              </div>
+                            )}
+                        </div>
                       )}
-                      {formData.morningIntake.coffee?.checked && (
-                        <div>☕ Coffee: Yes</div>
+                      {formData.morningIntake.coffee !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            ☕ Coffee:{" "}
+                            {formData.morningIntake.coffee?.checked
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                        </div>
                       )}
-                      {formData.morningIntake.lemonWater?.checked && (
-                        <div>🍋 Lemon Water: Yes</div>
+                      {formData.morningIntake.lemonWater !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            🍋 Lemon Water:{" "}
+                            {formData.morningIntake.lemonWater?.checked
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                        </div>
                       )}
-                      {formData.morningIntake.garlicHerbs?.checked && (
-                        <FieldDisplay
-                          label="Garlic & Herbs"
-                          value={formData.morningIntake.garlicHerbs.types}
-                        />
+                      {formData.morningIntake.garlicHerbs !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            Garlic & Herbs:{" "}
+                            {formData.morningIntake.garlicHerbs?.checked
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                          {formData.morningIntake.garlicHerbs?.checked &&
+                            formData.morningIntake.garlicHerbs.types && (
+                              <div className="text-sm text-slate-600">
+                                Types:{" "}
+                                {formData.morningIntake.garlicHerbs.types}
+                              </div>
+                            )}
+                        </div>
                       )}
-                      {formData.morningIntake.soakedDryFruits?.checked && (
-                        <FieldDisplay
-                          label="Soaked Dry Fruits"
-                          value={
-                            formData.morningIntake.soakedDryFruits.quantity
-                          }
-                        />
+                      {formData.morningIntake.soakedDryFruits !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            Soaked Dry Fruits:{" "}
+                            {formData.morningIntake.soakedDryFruits?.checked
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                          {formData.morningIntake.soakedDryFruits?.checked &&
+                            formData.morningIntake.soakedDryFruits.quantity && (
+                              <div className="text-sm text-slate-600">
+                                Quantity:{" "}
+                                {
+                                  formData.morningIntake.soakedDryFruits
+                                    .quantity
+                                }
+                              </div>
+                            )}
+                        </div>
                       )}
-                      {formData.morningIntake.biscuitToast?.checked && (
-                        <FieldDisplay
-                          label="Biscuit/Toast"
-                          value={formData.morningIntake.biscuitToast.quantity}
-                        />
+                      {formData.morningIntake.biscuitToast !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            Biscuit/Toast:{" "}
+                            {formData.morningIntake.biscuitToast?.checked
+                              ? "Yes"
+                              : "No"}
+                          </div>
+                          {formData.morningIntake.biscuitToast?.checked &&
+                            formData.morningIntake.biscuitToast.quantity && (
+                              <div className="text-sm text-slate-600">
+                                Quantity:{" "}
+                                {formData.morningIntake.biscuitToast.quantity}
+                              </div>
+                            )}
+                        </div>
                       )}
                       <FieldDisplay
                         label="Fruits"
@@ -436,13 +499,13 @@ export default function DoctorNotesPreview({
                         { key: "milk", label: "Milk" },
                       ].map(({ key, label }) => {
                         const item = (formData.breakfast as any)[key];
-                        if (!item?.checked) return null;
+                        const isChecked = item?.checked === true;
                         return (
                           <div key={key} className="bg-white rounded p-2">
                             <div className="font-medium text-slate-900">
-                              {label}
+                              {label}: {isChecked ? "Yes" : "No"}
                             </div>
-                            {item.quantity && (
+                            {isChecked && item.quantity && (
                               <div className="text-sm text-slate-600">
                                 Quantity: {item.quantity}
                               </div>
@@ -452,19 +515,19 @@ export default function DoctorNotesPreview({
                       })}
 
                       {/* Roti with Ghee */}
-                      {formData.breakfast.roti?.checked && (
-                        <>
-                          <div className="bg-white rounded p-2">
-                            <div className="font-medium text-slate-900">
-                              🍞 Roti: Yes
-                            </div>
-                            {formData.breakfast.roti.ghee && (
+                      {formData.breakfast.roti !== undefined && (
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            🍞 Roti:{" "}
+                            {formData.breakfast.roti?.checked ? "Yes" : "No"}
+                          </div>
+                          {formData.breakfast.roti?.checked &&
+                            formData.breakfast.roti.ghee && (
                               <div className="text-sm text-slate-600">
                                 Ghee: {formData.breakfast.roti.ghee}
                               </div>
                             )}
-                          </div>
-                        </>
+                        </div>
                       )}
 
                       {/* Items array (if exists - legacy format) */}
@@ -505,17 +568,52 @@ export default function DoctorNotesPreview({
                       Mid Morning
                     </h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <FieldDisplay
-                        label="Time"
-                        value={formData.midMorning.time}
-                      />
+                      {formData.midMorning.time && (
+                        <FieldDisplay
+                          label="Time"
+                          value={formData.midMorning.time}
+                        />
+                      )}
+
+                      {/* Individual mid morning items with quantity */}
+                      {[
+                        { key: "buttermilk", label: "Buttermilk" },
+                        { key: "curd", label: "Curd" },
+                        { key: "fruit", label: "Fruit" },
+                        { key: "teacoffee", label: "Tea/Coffee" },
+                        { key: "other", label: "Other" },
+                      ].map(({ key, label }) => {
+                        const item = (formData.midMorning as any)[key];
+                        const isChecked = item?.checked === true;
+                        return (
+                          <div key={key} className="bg-white rounded p-2">
+                            <div className="font-medium text-slate-900">
+                              {label}: {isChecked ? "Yes" : "No"}
+                            </div>
+                            {isChecked && item.quantity && (
+                              <div className="text-sm text-slate-600">
+                                Quantity: {item.quantity}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Items array (if exists - legacy format) */}
                       {formData.midMorning.items &&
+                        Array.isArray(formData.midMorning.items) &&
                         formData.midMorning.items
                           .filter((item: any) => item.checked)
                           .map((item: any, idx: number) => (
-                            <div key={idx}>
-                              {item.name}
-                              {item.quantity && ` (${item.quantity})`}
+                            <div key={idx} className="bg-white rounded p-2">
+                              <div className="font-medium text-slate-900">
+                                {item.name}
+                              </div>
+                              {item.quantity && (
+                                <div className="text-sm text-slate-600">
+                                  Quantity: {item.quantity}
+                                </div>
+                              )}
                             </div>
                           ))}
                     </div>
@@ -640,31 +738,47 @@ export default function DoctorNotesPreview({
                         value={`${formData.lunch.biryani.bowls} bowls`}
                       />
                     )}
-                    {formData.lunch.salad?.checked && (
-                      <>
-                        <div>🥗 Salad: Yes</div>
-                        {formData.lunch.salad.type && (
-                          <FieldDisplay
-                            label="Salad Type"
-                            value={formData.lunch.salad.type}
-                          />
-                        )}
-                        {formData.lunch.salad.quantity && (
-                          <FieldDisplay
-                            label="Salad Quantity"
-                            value={formData.lunch.salad.quantity}
-                          />
-                        )}
-                      </>
+                    {formData.lunch.salad !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          🥗 Salad:{" "}
+                          {formData.lunch.salad?.checked ? "Yes" : "No"}
+                        </div>
+                        {formData.lunch.salad?.checked &&
+                          formData.lunch.salad.type && (
+                            <div className="text-sm text-slate-600">
+                              Type: {formData.lunch.salad.type}
+                            </div>
+                          )}
+                        {formData.lunch.salad?.checked &&
+                          formData.lunch.salad.quantity && (
+                            <div className="text-sm text-slate-600">
+                              Quantity: {formData.lunch.salad.quantity}
+                            </div>
+                          )}
+                      </div>
                     )}
-                    {formData.lunch.chutney?.checked && (
-                      <FieldDisplay
-                        label="Chutney"
-                        value={formData.lunch.chutney.type}
-                      />
+                    {formData.lunch.chutney !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          Chutney:{" "}
+                          {formData.lunch.chutney?.checked ? "Yes" : "No"}
+                        </div>
+                        {formData.lunch.chutney?.checked &&
+                          formData.lunch.chutney.type && (
+                            <div className="text-sm text-slate-600">
+                              Type: {formData.lunch.chutney.type}
+                            </div>
+                          )}
+                      </div>
                     )}
-                    {formData.lunch.pickle?.checked && (
-                      <div>🥒 Pickle: Yes</div>
+                    {formData.lunch.pickle !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          🥒 Pickle:{" "}
+                          {formData.lunch.pickle?.checked ? "Yes" : "No"}
+                        </div>
+                      </div>
                     )}
                     <div className="md:col-span-2">
                       <FieldDisplay
@@ -695,7 +809,7 @@ export default function DoctorNotesPreview({
                         <div className="font-medium text-slate-900">Sweets</div>
                         {formData.midDay.sweets.bowls ? (
                           <div className="text-sm text-slate-600">
-                            {formData.midDay.sweets.bowls} bowls
+                            {formData.midDay.sweets.bowls} pieces
                           </div>
                         ) : (
                           <div className="text-sm text-emerald-600">Yes</div>
@@ -709,7 +823,7 @@ export default function DoctorNotesPreview({
                         </div>
                         {formData.midDay.dessert.bowls ? (
                           <div className="text-sm text-slate-600">
-                            {formData.midDay.dessert.bowls} bowls
+                            {formData.midDay.dessert.bowls} pieces
                           </div>
                         ) : (
                           <div className="text-sm text-emerald-600">Yes</div>
@@ -721,7 +835,7 @@ export default function DoctorNotesPreview({
                         <div className="font-medium text-slate-900">Laddu</div>
                         {formData.midDay.laddu.bowls ? (
                           <div className="text-sm text-slate-600">
-                            {formData.midDay.laddu.bowls} bowls
+                            {formData.midDay.laddu.bowls} pieces
                           </div>
                         ) : (
                           <div className="text-sm text-emerald-600">Yes</div>
@@ -733,7 +847,7 @@ export default function DoctorNotesPreview({
                         <div className="font-medium text-slate-900">Fruits</div>
                         {formData.midDay.fruits.bowls ? (
                           <div className="text-sm text-slate-600">
-                            {formData.midDay.fruits.bowls} bowls
+                            {formData.midDay.fruits.bowls} pieces
                           </div>
                         ) : (
                           <div className="text-sm text-emerald-600">Yes</div>
@@ -800,14 +914,16 @@ export default function DoctorNotesPreview({
                         "groundnuts",
                       ].map((itemKey) => {
                         const item = (formData.eveningSnack as any)[itemKey];
-                        if (!item?.checked) return null;
+                        const isChecked = item?.checked === true;
+                        const label =
+                          itemKey.charAt(0).toUpperCase() +
+                          itemKey.slice(1).replace(/([A-Z])/g, " $1");
                         return (
                           <div key={itemKey} className="bg-white rounded p-2">
                             <div className="font-medium text-slate-900">
-                              {itemKey.charAt(0).toUpperCase() +
-                                itemKey.slice(1).replace(/([A-Z])/g, " $1")}
+                              {label}: {isChecked ? "Yes" : "No"}
                             </div>
-                            {item.quantity && (
+                            {isChecked && item.quantity && (
                               <div className="text-sm text-slate-600">
                                 Quantity: {item.quantity}
                               </div>
@@ -816,36 +932,49 @@ export default function DoctorNotesPreview({
                         );
                       })}
 
-                      {/* Items with bowls (Poha, Upma, Sandwich, Dosa) */}
+                      {/* Items with bowls (Poha, Upma) and pieces (Sandwich, Dosa) */}
                       {["poha", "upma", "sandwich", "dosa"].map((itemKey) => {
                         const item = (formData.eveningSnack as any)[itemKey];
-                        if (!item?.checked) return null;
+                        const isChecked = item?.checked === true;
+                        const label =
+                          itemKey.charAt(0).toUpperCase() + itemKey.slice(1);
+                        // Sandwich and Dosa show pieces, others show bowls
+                        const unit =
+                          itemKey === "sandwich" || itemKey === "dosa"
+                            ? "pieces"
+                            : "bowls";
                         return (
                           <div key={itemKey} className="bg-white rounded p-2">
                             <div className="font-medium text-slate-900">
-                              {itemKey.charAt(0).toUpperCase() +
-                                itemKey.slice(1)}
+                              {label}: {isChecked ? "Yes" : "No"}
                             </div>
-                            {item.bowls && (
+                            {isChecked && item.bowls && (
                               <div className="text-sm text-slate-600">
-                                {item.bowls} bowls
+                                {item.bowls} {unit}
                               </div>
                             )}
                           </div>
                         );
                       })}
 
-                      {(formData.eveningSnack as any).teaCoffee?.checked && (
+                      {(formData.eveningSnack as any).teaCoffee !==
+                        undefined && (
                         <div className="bg-white rounded p-2">
                           <div className="font-medium text-slate-900">
-                            ☕ Tea/Coffee: Yes
+                            ☕ Tea/Coffee:{" "}
+                            {(formData.eveningSnack as any).teaCoffee?.checked
+                              ? "Yes"
+                              : "No"}
                           </div>
                         </div>
                       )}
-                      {(formData.eveningSnack as any).milk?.checked && (
+                      {(formData.eveningSnack as any).milk !== undefined && (
                         <div className="bg-white rounded p-2">
                           <div className="font-medium text-slate-900">
-                            🥛 Milk: Yes
+                            🥛 Milk:{" "}
+                            {(formData.eveningSnack as any).milk?.checked
+                              ? "Yes"
+                              : "No"}
                           </div>
                         </div>
                       )}
@@ -988,31 +1117,47 @@ export default function DoctorNotesPreview({
                         value={`${formData.dinner.biryani.bowls} bowls`}
                       />
                     )}
-                    {formData.dinner.salad?.checked && (
-                      <>
-                        <div>🥗 Salad: Yes</div>
-                        {formData.dinner.salad.type && (
-                          <FieldDisplay
-                            label="Salad Type"
-                            value={formData.dinner.salad.type}
-                          />
-                        )}
-                        {formData.dinner.salad.quantity && (
-                          <FieldDisplay
-                            label="Salad Quantity"
-                            value={formData.dinner.salad.quantity}
-                          />
-                        )}
-                      </>
+                    {formData.dinner.salad !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          🥗 Salad:{" "}
+                          {formData.dinner.salad?.checked ? "Yes" : "No"}
+                        </div>
+                        {formData.dinner.salad?.checked &&
+                          formData.dinner.salad.type && (
+                            <div className="text-sm text-slate-600">
+                              Type: {formData.dinner.salad.type}
+                            </div>
+                          )}
+                        {formData.dinner.salad?.checked &&
+                          formData.dinner.salad.quantity && (
+                            <div className="text-sm text-slate-600">
+                              Quantity: {formData.dinner.salad.quantity}
+                            </div>
+                          )}
+                      </div>
                     )}
-                    {formData.dinner.chutney?.checked && (
-                      <FieldDisplay
-                        label="Chutney"
-                        value={formData.dinner.chutney.type}
-                      />
+                    {formData.dinner.chutney !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          Chutney:{" "}
+                          {formData.dinner.chutney?.checked ? "Yes" : "No"}
+                        </div>
+                        {formData.dinner.chutney?.checked &&
+                          formData.dinner.chutney.type && (
+                            <div className="text-sm text-slate-600">
+                              Type: {formData.dinner.chutney.type}
+                            </div>
+                          )}
+                      </div>
                     )}
-                    {formData.dinner.pickle?.checked && (
-                      <div>🥒 Pickle: Yes</div>
+                    {formData.dinner.pickle !== undefined && (
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          🥒 Pickle:{" "}
+                          {formData.dinner.pickle?.checked ? "Yes" : "No"}
+                        </div>
+                      </div>
                     )}
                     <div className="md:col-span-2">
                       <FieldDisplay
@@ -1029,32 +1174,32 @@ export default function DoctorNotesPreview({
                     {/* Mid-Day fields in dinner */}
                     {formData.dinner.sweets?.checked && (
                       <FieldDisplay
-                        label="Sweets (Mid-Day)"
+                        label="Sweets"
                         value={`${formData.dinner.sweets.bowls} bowls`}
                       />
                     )}
                     {formData.dinner.dessert?.checked && (
                       <FieldDisplay
-                        label="Dessert (Mid-Day)"
+                        label="Dessert"
                         value={`${formData.dinner.dessert.bowls} bowls`}
                       />
                     )}
                     {formData.dinner.laddu?.checked && (
                       <FieldDisplay
-                        label="Laddu (Mid-Day)"
+                        label="Laddu"
                         value={`${formData.dinner.laddu.bowls} bowls`}
                       />
                     )}
                     {formData.dinner.fruits?.checked && (
                       <FieldDisplay
-                        label="Fruits (Mid-Day)"
+                        label="Fruits"
                         value={`${formData.dinner.fruits.bowls} bowls`}
                       />
                     )}
                     {formData.dinner.midDayOther && (
                       <div className="md:col-span-2">
                         <FieldDisplay
-                          label="Other (Mid-Day)"
+                          label="Other"
                           value={formData.dinner.midDayOther}
                         />
                       </div>
@@ -1062,7 +1207,7 @@ export default function DoctorNotesPreview({
                     {formData.dinner.midDayOtherQuantity && (
                       <div className="md:col-span-2">
                         <FieldDisplay
-                          label="Other Quantity (Mid-Day)"
+                          label="Other Quantity"
                           value={formData.dinner.midDayOtherQuantity}
                         />
                       </div>
@@ -1114,36 +1259,28 @@ export default function DoctorNotesPreview({
                   value={formData.weekendDiet.orderedFromOutsideFoodItems}
                 />
               </div>
-              {typeof formData.weekendDiet.snacksList === "object" &&
-                (formData.weekendDiet.snacksList as any)?.checked && (
-                  <FieldDisplay
-                    label="Snacks List"
-                    value={(formData.weekendDiet.snacksList as any).quantity}
-                  />
-                )}
-              {typeof formData.weekendDiet.starterList === "object" &&
-                (formData.weekendDiet.starterList as any)?.checked && (
-                  <FieldDisplay
-                    label="Starter List"
-                    value={(formData.weekendDiet.starterList as any).quantity}
-                  />
-                )}
-              {typeof formData.weekendDiet.mainCourseList === "object" &&
-                (formData.weekendDiet.mainCourseList as any)?.checked && (
-                  <FieldDisplay
-                    label="Main Course List"
-                    value={
-                      (formData.weekendDiet.mainCourseList as any).quantity
-                    }
-                  />
-                )}
-              {typeof formData.weekendDiet.sweetItemList === "object" &&
-                (formData.weekendDiet.sweetItemList as any)?.checked && (
-                  <FieldDisplay
-                    label="Sweet Item List"
-                    value={(formData.weekendDiet.sweetItemList as any).quantity}
-                  />
-                )}
+              {/* Snacks List, Starter List, Main Course List, Sweet Item List */}
+              {[
+                { key: "snackslist", label: "Snacks List" },
+                { key: "starterlist", label: "Starter List" },
+                { key: "maincourselist", label: "Main Course List" },
+                { key: "sweetitemlist", label: "Sweet Item List" },
+              ].map(({ key, label }) => {
+                const item = (formData.weekendDiet as any)[key];
+                const isChecked = item?.checked === true;
+                return (
+                  <div key={key} className="bg-white rounded p-2">
+                    <div className="font-medium text-slate-900">
+                      {label}: {isChecked ? "Yes" : "No"}
+                    </div>
+                    {isChecked && item.quantity && (
+                      <div className="text-sm text-slate-600">
+                        Quantity: {item.quantity}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               <FieldDisplay
                 label="Sleeping Time (Weekend)"
                 value={formData.weekendDiet.sleepingTime}
@@ -1286,6 +1423,11 @@ export default function DoctorNotesPreview({
                                       Prep: {item.prepType}
                                     </div>
                                   )}
+                                  {item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
                               ))
                           : // Handle as object (legacy format)
@@ -1311,6 +1453,11 @@ export default function DoctorNotesPreview({
                                         Prep: {item.prepType}
                                       </div>
                                     )}
+                                    {item.frequency && (
+                                      <div className="text-sm text-slate-600">
+                                        Frequency: {item.frequency}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               }
@@ -1327,12 +1474,27 @@ export default function DoctorNotesPreview({
                         Dairy
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {formData.foodFrequency.dairy.milk?.checked && (
-                          <FieldDisplay
-                            label="Milk"
-                            value={`${formData.foodFrequency.dairy.milk.glasses} glasses`}
-                          />
-                        )}
+                        {(() => {
+                          const milk = formData.foodFrequency.dairy.milk as any;
+                          if (milk === undefined) return null;
+                          return (
+                            <div className="bg-white rounded p-2">
+                              <div className="font-medium text-slate-900">
+                                Milk: {milk?.checked ? "Yes" : "No"}
+                              </div>
+                              {milk?.checked && milk.glasses && (
+                                <div className="text-sm text-slate-600">
+                                  Quantity: {milk.glasses} glasses
+                                </div>
+                              )}
+                              {milk?.checked && milk.frequency && (
+                                <div className="text-sm text-slate-600">
+                                  Frequency: {milk.frequency}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {formData.foodFrequency.dairy.curdButtermilk && (
                           <FieldDisplay
                             label="Curd / Buttermilk"
@@ -1345,96 +1507,201 @@ export default function DoctorNotesPreview({
 
                 {/* Packaged Items */}
                 {formData.foodFrequency.packaged &&
-                  Array.isArray(formData.foodFrequency.packaged) &&
-                  formData.foodFrequency.packaged.length > 0 && (
+                  (Array.isArray(formData.foodFrequency.packaged)
+                    ? formData.foodFrequency.packaged.length > 0
+                    : Object.keys(formData.foodFrequency.packaged).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Packaged / Daily Items
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {formData.foodFrequency.packaged
-                          .filter((item: any) => item.checked)
-                          .map((item: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-3">
-                              <div className="font-medium text-slate-900 mb-1">
-                                {item.name}
-                              </div>
-                              {item.quantity && (
-                                <div className="text-sm text-slate-600">
-                                  Qty: {item.quantity}
+                        {Array.isArray(formData.foodFrequency.packaged)
+                          ? // Handle as array (legacy format)
+                            formData.foodFrequency.packaged
+                              .filter((item: any) => item.checked)
+                              .map((item: any, idx: number) => (
+                                <div key={idx} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {item.name}
+                                  </div>
+                                  {item.quantity && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.quantity}
+                                    </div>
+                                  )}
+                                  {item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {item.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {item.frequency}
+                              ))
+                          : // Handle as object (current format)
+                            [
+                              "Noodles",
+                              "Butter/Cream/Ghee",
+                              "Ghee Chapati",
+                              "Cheese",
+                              "Ice Cream",
+                              "Milkshake",
+                              "Chocolate",
+                              "Fried Foods",
+                              "Pickle/Papad",
+                              "Lemon Sweets",
+                              "Biscuits",
+                              "Sweets/Desserts",
+                              "Jam/Sauces",
+                              "Instant Foods",
+                              "Soft Drinks",
+                            ].map((itemName) => {
+                              const key = itemName
+                                .toLowerCase()
+                                .replace(/[\/ ]/g, "");
+                              const item = (
+                                formData.foodFrequency?.packaged as any
+                              )?.[key];
+                              const isChecked = item?.checked === true;
+                              return (
+                                <div key={key} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {itemName}: {isChecked ? "Yes" : "No"}
+                                  </div>
+                                  {isChecked && item.quantity && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.quantity}
+                                    </div>
+                                  )}
+                                  {isChecked && item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            })}
                       </div>
                     </div>
                   )}
 
                 {/* Sweeteners */}
                 {formData.foodFrequency.sweeteners &&
-                  Array.isArray(formData.foodFrequency.sweeteners) &&
-                  formData.foodFrequency.sweeteners.length > 0 && (
+                  (Array.isArray(formData.foodFrequency.sweeteners)
+                    ? formData.foodFrequency.sweeteners.length > 0
+                    : Object.keys(formData.foodFrequency.sweeteners).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Sweeteners
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {formData.foodFrequency.sweeteners
-                          .filter((item: any) => item.checked)
-                          .map((item: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-3">
-                              <div className="font-medium text-slate-900 mb-1">
-                                {item.name}
-                              </div>
-                              {item.qty && (
-                                <div className="text-sm text-slate-600">
-                                  Qty: {item.qty} TSP/TBSP
+                        {Array.isArray(formData.foodFrequency.sweeteners)
+                          ? // Handle as array (legacy format)
+                            formData.foodFrequency.sweeteners
+                              .filter((item: any) => item.checked)
+                              .map((item: any, idx: number) => (
+                                <div key={idx} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {item.name}
+                                  </div>
+                                  {item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} TSP/TBSP
+                                    </div>
+                                  )}
+                                  {item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {item.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {item.frequency}
+                              ))
+                          : // Handle as object (current format)
+                            ["Sugar", "Honey", "Jaggery"].map((itemName) => {
+                              const key = itemName.toLowerCase();
+                              const item = (
+                                formData.foodFrequency?.sweeteners as any
+                              )?.[key];
+                              const isChecked = item?.checked === true;
+                              return (
+                                <div key={key} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {itemName}: {isChecked ? "Yes" : "No"}
+                                  </div>
+                                  {isChecked && item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} TSP/TBSP
+                                    </div>
+                                  )}
+                                  {isChecked && item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            })}
                       </div>
                     </div>
                   )}
 
                 {/* Drinks */}
                 {formData.foodFrequency.drinks &&
-                  Array.isArray(formData.foodFrequency.drinks) &&
-                  formData.foodFrequency.drinks.length > 0 && (
+                  (Array.isArray(formData.foodFrequency.drinks)
+                    ? formData.foodFrequency.drinks.length > 0
+                    : Object.keys(formData.foodFrequency.drinks).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Drinks
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {formData.foodFrequency.drinks
-                          .filter((item: any) => item.checked)
-                          .map((item: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-3">
-                              <div className="font-medium text-slate-900 mb-1">
-                                {item.name}
-                              </div>
-                              {item.qty && (
-                                <div className="text-sm text-slate-600">
-                                  Qty: {item.qty} cups/pieces
+                        {Array.isArray(formData.foodFrequency.drinks)
+                          ? // Handle as array (legacy format)
+                            formData.foodFrequency.drinks
+                              .filter((item: any) => item.checked)
+                              .map((item: any, idx: number) => (
+                                <div key={idx} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {item.name}
+                                  </div>
+                                  {item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} cups/pieces
+                                    </div>
+                                  )}
+                                  {item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {item.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {item.frequency}
+                              ))
+                          : // Handle as object (current format)
+                            ["Tea", "Coffee"].map((itemName) => {
+                              const key = itemName.toLowerCase();
+                              const item = (
+                                formData.foodFrequency?.drinks as any
+                              )?.[key];
+                              const isChecked = item?.checked === true;
+                              return (
+                                <div key={key} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {itemName}: {isChecked ? "Yes" : "No"}
+                                  </div>
+                                  {isChecked && item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} cups/pieces
+                                    </div>
+                                  )}
+                                  {isChecked && item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            })}
                       </div>
                     </div>
                   )}
@@ -1457,7 +1724,7 @@ export default function DoctorNotesPreview({
                             .map((item: any, idx: number) => (
                               <div key={idx} className="bg-white rounded p-3">
                                 <div className="font-medium text-slate-900 mb-1">
-                                  {item.name}
+                                  {item.name}: Yes
                                 </div>
                                 {item.qty && (
                                   <div className="text-sm text-slate-600">
@@ -1472,95 +1739,55 @@ export default function DoctorNotesPreview({
                               </div>
                             ))
                         ) : (
-                          // Handle as object (legacy format)
+                          // Handle as object (current format)
                           <>
-                            {(formData.foodFrequency.lifestyle as any).smoking
-                              ?.checked && (
-                              <div className="bg-white rounded p-3">
-                                <div className="font-medium text-slate-900 mb-1">
-                                  Smoking
+                            {["Smoking", "Tobacco"].map((itemName) => {
+                              const key = itemName.toLowerCase();
+                              const item = (
+                                formData.foodFrequency?.lifestyle as any
+                              )?.[key];
+                              const isChecked = item?.checked === true;
+                              return (
+                                <div key={key} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {itemName}: {isChecked ? "Yes" : "No"}
+                                  </div>
+                                  {isChecked && item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} cups/pieces
+                                    </div>
+                                  )}
+                                  {isChecked && item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .smoking.qty && (
-                                  <div className="text-sm text-slate-600">
-                                    Qty:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .smoking.qty
-                                    }{" "}
-                                    cups/pieces
+                              );
+                            })}
+                            {(() => {
+                              const alcohol = (
+                                formData.foodFrequency.lifestyle as any
+                              ).alcohol;
+                              const isChecked = alcohol?.checked === true;
+                              return (
+                                <div className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    Alcohol: {isChecked ? "Yes" : "No"}
                                   </div>
-                                )}
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .smoking.frequency && (
-                                  <div className="text-sm text-slate-600">
-                                    Frequency:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .smoking.frequency
-                                    }
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {(formData.foodFrequency.lifestyle as any).tobacco
-                              ?.checked && (
-                              <div className="bg-white rounded p-3">
-                                <div className="font-medium text-slate-900 mb-1">
-                                  Tobacco
+                                  {isChecked && alcohol.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {alcohol.qty} ml
+                                    </div>
+                                  )}
+                                  {isChecked && alcohol.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {alcohol.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .tobacco.qty && (
-                                  <div className="text-sm text-slate-600">
-                                    Qty:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .tobacco.qty
-                                    }{" "}
-                                    cups/pieces
-                                  </div>
-                                )}
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .tobacco.frequency && (
-                                  <div className="text-sm text-slate-600">
-                                    Frequency:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .tobacco.frequency
-                                    }
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {(formData.foodFrequency.lifestyle as any).alcohol
-                              ?.checked && (
-                              <div className="bg-white rounded p-3">
-                                <div className="font-medium text-slate-900 mb-1">
-                                  Alcohol
-                                </div>
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .alcohol.qty && (
-                                  <div className="text-sm text-slate-600">
-                                    Qty:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .alcohol.qty
-                                    }{" "}
-                                    ml
-                                  </div>
-                                )}
-                                {(formData.foodFrequency.lifestyle as any)
-                                  .alcohol.frequency && (
-                                  <div className="text-sm text-slate-600">
-                                    Frequency:{" "}
-                                    {
-                                      (formData.foodFrequency.lifestyle as any)
-                                        .alcohol.frequency
-                                    }
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                              );
+                            })()}
                           </>
                         )}
                       </div>
@@ -1568,116 +1795,178 @@ export default function DoctorNotesPreview({
                   )}
 
                 {/* Water */}
-                {formData.foodFrequency.water?.checked && (
+                {formData.foodFrequency.water !== undefined && (
                   <div className="bg-slate-50 rounded-lg p-4">
                     <h5 className="font-semibold text-slate-700 mb-3">Water</h5>
                     <div className="bg-white rounded p-3">
                       <div className="font-medium text-slate-900 mb-1">
-                        Water
+                        Water:{" "}
+                        {formData.foodFrequency.water?.checked ? "Yes" : "No"}
                       </div>
-                      {formData.foodFrequency.water.qty && (
-                        <div className="text-sm text-slate-600">
-                          Qty: {formData.foodFrequency.water.qty} cups/pieces
-                        </div>
-                      )}
-                      {formData.foodFrequency.water.frequency && (
-                        <div className="text-sm text-slate-600">
-                          Frequency: {formData.foodFrequency.water.frequency}
-                        </div>
-                      )}
+                      {formData.foodFrequency.water?.checked &&
+                        formData.foodFrequency.water.qty && (
+                          <div className="text-sm text-slate-600">
+                            Qty: {formData.foodFrequency.water.qty} cups/pieces
+                          </div>
+                        )}
+                      {formData.foodFrequency.water?.checked &&
+                        formData.foodFrequency.water.frequency && (
+                          <div className="text-sm text-slate-600">
+                            Frequency: {formData.foodFrequency.water.frequency}
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}
 
                 {/* Healthy Foods */}
                 {formData.foodFrequency.healthyFoods &&
-                  Array.isArray(formData.foodFrequency.healthyFoods) &&
-                  formData.foodFrequency.healthyFoods.length > 0 && (
+                  (Array.isArray(formData.foodFrequency.healthyFoods)
+                    ? formData.foodFrequency.healthyFoods.length > 0
+                    : Object.keys(formData.foodFrequency.healthyFoods).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Healthy Foods
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {formData.foodFrequency.healthyFoods
-                          .filter((item: any) => item.checked)
-                          .map((item: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-3">
-                              <div className="font-medium text-slate-900 mb-1">
-                                {item.name}
-                              </div>
-                              {item.qty && (
-                                <div className="text-sm text-slate-600">
-                                  Qty: {item.qty} cups/pieces
+                        {Array.isArray(formData.foodFrequency.healthyFoods)
+                          ? // Handle as array (legacy format)
+                            formData.foodFrequency.healthyFoods
+                              .filter((item: any) => item.checked)
+                              .map((item: any, idx: number) => (
+                                <div key={idx} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {item.name}
+                                  </div>
+                                  {item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} cups/pieces
+                                    </div>
+                                  )}
+                                  {item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {item.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {item.frequency}
+                              ))
+                          : // Handle as object (current format)
+                            [
+                              "Leafy Veg (Bowls)",
+                              "Fresh Fruits",
+                              "Dry Fruits & Nuts",
+                              "Veg Salad",
+                            ].map((itemName) => {
+                              const key = itemName
+                                .toLowerCase()
+                                .replace(/[ &]/g, "");
+                              const item = (
+                                formData.foodFrequency?.healthyFoods as any
+                              )?.[key];
+                              const isChecked = item?.checked === true;
+                              return (
+                                <div key={key} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {itemName}: {isChecked ? "Yes" : "No"}
+                                  </div>
+                                  {isChecked && item.qty && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qty} cups/pieces
+                                    </div>
+                                  )}
+                                  {isChecked && item.frequency && (
+                                    <div className="text-sm text-slate-600">
+                                      Frequency: {item.frequency}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            })}
                       </div>
                     </div>
                   )}
 
                 {/* Eating Out */}
-                {formData.foodFrequency.eatingOut?.checked && (
+                {formData.foodFrequency.eatingOut !== undefined && (
                   <div className="bg-slate-50 rounded-lg p-4">
                     <h5 className="font-semibold text-slate-700 mb-3">
                       Eating Out
                     </h5>
                     <div className="bg-white rounded p-3">
-                      {formData.foodFrequency.eatingOut.frequency && (
-                        <div className="text-sm text-slate-600 mb-2">
-                          Frequency:{" "}
-                          {formData.foodFrequency.eatingOut.frequency}
-                        </div>
-                      )}
-                      {formData.foodFrequency.eatingOut.foodItems && (
-                        <div className="text-sm text-slate-900">
-                          {formData.foodFrequency.eatingOut.foodItems}
-                        </div>
-                      )}
+                      <div className="font-medium text-slate-900 mb-1">
+                        Eating Out:{" "}
+                        {formData.foodFrequency.eatingOut?.checked
+                          ? "Yes"
+                          : "No"}
+                      </div>
+                      {formData.foodFrequency.eatingOut?.checked &&
+                        formData.foodFrequency.eatingOut.frequency && (
+                          <div className="text-sm text-slate-600 mb-2">
+                            Frequency:{" "}
+                            {formData.foodFrequency.eatingOut.frequency}
+                          </div>
+                        )}
+                      {formData.foodFrequency.eatingOut?.checked &&
+                        formData.foodFrequency.eatingOut.foodItems && (
+                          <div className="text-sm text-slate-600">
+                            Food Items:{" "}
+                            {formData.foodFrequency.eatingOut.foodItems}
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}
 
                 {/* Coconut */}
-                {formData.foodFrequency.coconut?.checked && (
+                {formData.foodFrequency.coconut !== undefined && (
                   <div className="bg-slate-50 rounded-lg p-4">
                     <h5 className="font-semibold text-slate-700 mb-3">
                       Coconut
                     </h5>
                     <div className="bg-white rounded p-3">
-                      {formData.foodFrequency.coconut.frequency && (
-                        <div className="text-sm text-slate-600">
-                          Frequency: {formData.foodFrequency.coconut.frequency}
-                        </div>
-                      )}
+                      <div className="font-medium text-slate-900 mb-1">
+                        Coconut:{" "}
+                        {formData.foodFrequency.coconut?.checked ? "Yes" : "No"}
+                      </div>
+                      {formData.foodFrequency.coconut?.checked &&
+                        formData.foodFrequency.coconut.frequency && (
+                          <div className="text-sm text-slate-600">
+                            Frequency:{" "}
+                            {formData.foodFrequency.coconut.frequency}
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}
 
                 {/* Pizza/Burger */}
-                {formData.foodFrequency.pizzaBurger?.checked && (
+                {formData.foodFrequency.pizzaBurger !== undefined && (
                   <div className="bg-slate-50 rounded-lg p-4">
                     <h5 className="font-semibold text-slate-700 mb-3">
                       Pizza/Burger
                     </h5>
                     <div className="bg-white rounded p-3">
-                      {formData.foodFrequency.pizzaBurger.qty && (
-                        <div className="text-sm text-slate-600 mb-2">
-                          Qty: {formData.foodFrequency.pizzaBurger.qty}{" "}
-                          cups/pieces
-                        </div>
-                      )}
-                      {formData.foodFrequency.pizzaBurger.frequency && (
-                        <div className="text-sm text-slate-600">
-                          Frequency:{" "}
-                          {formData.foodFrequency.pizzaBurger.frequency}
-                        </div>
-                      )}
+                      <div className="font-medium text-slate-900 mb-1">
+                        Pizza/Burger:{" "}
+                        {formData.foodFrequency.pizzaBurger?.checked
+                          ? "Yes"
+                          : "No"}
+                      </div>
+                      {formData.foodFrequency.pizzaBurger?.checked &&
+                        formData.foodFrequency.pizzaBurger.qty && (
+                          <div className="text-sm text-slate-600 mb-2">
+                            Qty: {formData.foodFrequency.pizzaBurger.qty}{" "}
+                            cups/pieces
+                          </div>
+                        )}
+                      {formData.foodFrequency.pizzaBurger?.checked &&
+                        formData.foodFrequency.pizzaBurger.frequency && (
+                          <div className="text-sm text-slate-600">
+                            Frequency:{" "}
+                            {formData.foodFrequency.pizzaBurger.frequency}
+                          </div>
+                        )}
                     </div>
                   </div>
                 )}

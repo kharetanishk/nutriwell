@@ -1868,7 +1868,7 @@ function FoodRecallSection({ formData, updateFormData, getFormValue }: any) {
           {/* Mid-Day Fields */}
           <div className="sm:col-span-2 border-t-2 border-emerald-200 pt-4 mt-2">
             <h4 className="text-base sm:text-lg font-semibold text-emerald-700 mb-4">
-              Mid-Day Items
+              Additional Items
             </h4>
           </div>
 
@@ -1896,7 +1896,7 @@ function FoodRecallSection({ formData, updateFormData, getFormValue }: any) {
 
           <div className="sm:col-span-2">
             <TextArea
-              label="Other (Mid-Day)"
+              label="Other"
               value={dinner.midDayOther || ""}
               onChange={(val) => updateFormData(["dinner", "midDayOther"], val)}
               small
@@ -1904,7 +1904,7 @@ function FoodRecallSection({ formData, updateFormData, getFormValue }: any) {
           </div>
           <div className="sm:col-span-2">
             <TextArea
-              label="Other Quantity (Mid-Day)"
+              label="Other Quantity"
               value={dinner.midDayOtherQuantity || ""}
               onChange={(val) =>
                 updateFormData(["dinner", "midDayOtherQuantity"], val)
@@ -2270,6 +2270,28 @@ function FoodFrequencySection({ formData, updateFormData, getFormValue }: any) {
                   );
                 }}
               />
+              <Select
+                label="Frequency"
+                options={["Daily", "Weekly", "Monthly"]}
+                value={
+                  foodFrequency.nonVeg?.[item.toLowerCase().replace(/ /g, "")]
+                    ?.frequency || ""
+                }
+                onChange={(val) => {
+                  const nonVeg = foodFrequency.nonVeg || {};
+                  updateFormData(
+                    [
+                      "foodFrequency",
+                      "nonVeg",
+                      item.toLowerCase().replace(/ /g, ""),
+                    ],
+                    {
+                      ...nonVeg[item.toLowerCase().replace(/ /g, "")],
+                      frequency: val,
+                    }
+                  );
+                }}
+              />
             </div>
           ))}
           <div className="md:col-span-2">
@@ -2295,6 +2317,17 @@ function FoodFrequencySection({ formData, updateFormData, getFormValue }: any) {
                   })
                 }
               />
+              <Select
+                label="Frequency"
+                options={["Daily", "Weekly", "Monthly"]}
+                value={foodFrequency.nonVeg?.egg?.frequency || ""}
+                onChange={(val) =>
+                  updateFormData(["foodFrequency", "nonVeg", "egg"], {
+                    ...foodFrequency.nonVeg?.egg,
+                    frequency: val,
+                  })
+                }
+              />
             </div>
           </div>
         </div>
@@ -2302,24 +2335,37 @@ function FoodFrequencySection({ formData, updateFormData, getFormValue }: any) {
 
       <SubSection title="Dairy">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
-          <Qty5Select
-            label="Milk (Glass)"
-            checkbox
-            checked={foodFrequency.dairy?.milk?.checked || false}
-            value={foodFrequency.dairy?.milk?.glasses || ""}
-            onCheckedChange={(checked) =>
-              updateFormData(["foodFrequency", "dairy", "milk"], {
-                ...foodFrequency.dairy?.milk,
-                checked,
-              })
-            }
-            onValueChange={(val) =>
-              updateFormData(["foodFrequency", "dairy", "milk"], {
-                ...foodFrequency.dairy?.milk,
-                glasses: val,
-              })
-            }
-          />
+          <div className="space-y-4 p-4 bg-white/50 rounded-lg border border-emerald-200">
+            <Qty5Select
+              label="Milk (Glass)"
+              checkbox
+              checked={foodFrequency.dairy?.milk?.checked || false}
+              value={foodFrequency.dairy?.milk?.glasses || ""}
+              onCheckedChange={(checked) =>
+                updateFormData(["foodFrequency", "dairy", "milk"], {
+                  ...foodFrequency.dairy?.milk,
+                  checked,
+                })
+              }
+              onValueChange={(val) =>
+                updateFormData(["foodFrequency", "dairy", "milk"], {
+                  ...foodFrequency.dairy?.milk,
+                  glasses: val,
+                })
+              }
+            />
+            <Select
+              label="Frequency"
+              options={["Daily", "Weekly", "Monthly"]}
+              value={foodFrequency.dairy?.milk?.frequency || ""}
+              onChange={(val) =>
+                updateFormData(["foodFrequency", "dairy", "milk"], {
+                  ...foodFrequency.dairy?.milk,
+                  frequency: val,
+                })
+              }
+            />
+          </div>
           <Radio
             label="Curd / Buttermilk"
             options={["Daily", "Weekly", "Monthly"]}
