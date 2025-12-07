@@ -6,6 +6,8 @@ import { useAuth } from "@/app/context/AuthContext";
 import { getAppointmentDetails } from "@/lib/appointments-admin";
 import { Loader2, ChevronLeft } from "lucide-react";
 import DoctorNotesForm from "@/components/doctor-notes/DoctorNotesForm";
+import { DoctorNotesProvider } from "@/app/context/DoctorNotesContext";
+import { getDoctorNotes } from "@/lib/doctor-notes-api";
 
 export default function DoctorNotesPage() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export default function DoctorNotesPage() {
 
   const [appointment, setAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [initialFormData, setInitialFormData] = useState<any>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -41,6 +44,18 @@ export default function DoctorNotesPage() {
       const response = await getAppointmentDetails(appointmentId);
       console.log("[PAGE] Appointment data loaded:", response.appointment);
       setAppointment(response.appointment);
+
+      // Load existing doctor notes if any
+      try {
+        const notesResponse = await getDoctorNotes(appointmentId);
+        if (notesResponse.success && notesResponse.doctorNotes?.formData) {
+          console.log("[PAGE] Found existing doctor notes");
+          setInitialFormData(notesResponse.doctorNotes.formData);
+        }
+      } catch (error) {
+        // No existing notes, that's okay
+        console.log("[PAGE] No existing doctor notes found");
+      }
     } catch (error: any) {
       console.error("[PAGE] Failed to load appointment data:", error);
     } finally {
@@ -104,14 +119,19 @@ export default function DoctorNotesPage() {
           Back to Appointment Details
         </button>
 
-        {/* Form Component */}
+        {/* Form Component with Context Provider */}
         {appointment && (
-          <DoctorNotesForm
+          <DoctorNotesProvider
             appointmentId={appointmentId}
-            appointment={appointment}
-            onSave={handleSave}
-            onCancel={handleCancel}
-          />
+            initialData={initialFormData}
+          >
+            <DoctorNotesForm
+              appointmentId={appointmentId}
+              appointment={appointment}
+              onSave={handleSave}
+              onCancel={handleCancel}
+            />
+          </DoctorNotesProvider>
         )}
       </div>
     </main>

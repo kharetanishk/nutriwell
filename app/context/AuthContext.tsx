@@ -91,18 +91,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("auth_token");
       }
     } catch (err: any) {
+      const status = err?.response?.status;
+      const errorMessage = err?.response?.data?.message || err?.message;
+
       // Handle 401 specifically - user is not authenticated
-      if (err?.response?.status === 401) {
+      if (status === 401) {
         setUser(null);
         localStorage.removeItem("user");
         localStorage.removeItem("auth_token");
         if (process.env.NODE_ENV === "development") {
           console.log("[Auth] User not authenticated (401)");
         }
+      } else if (status === 400) {
+        // Handle 400 - Bad request (invalid token, invalid role, etc.)
+        console.error("[Auth] Bad request (400):", errorMessage);
+        // Clear potentially invalid auth data
+        setUser(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("auth_token");
       } else {
-        // For other errors, try to use stored user as fallback
+        // For other errors (404, 500, etc.), try to use stored user as fallback
         if (process.env.NODE_ENV === "development") {
-          console.error("[Auth] Failed to fetch user:", err);
+          console.error("[Auth] Failed to fetch user:", {
+            status,
+            message: errorMessage,
+            error: err,
+          });
         }
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
@@ -112,6 +126,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Invalid stored user, clear it
             localStorage.removeItem("user");
           }
+        } else {
+          // No stored user, clear auth state
+          setUser(null);
+          localStorage.removeItem("auth_token");
         }
       }
     }

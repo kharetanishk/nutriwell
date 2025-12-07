@@ -12,6 +12,7 @@ import {
 } from "@/lib/doctor-notes-api";
 import AppointmentPreview from "./AppointmentPreview";
 import { AppointmentDetails } from "@/lib/appointments-admin";
+import { useDoctorNotes } from "@/app/context/DoctorNotesContext";
 
 interface DoctorNotesFormProps {
   appointmentId: string;
@@ -30,7 +31,17 @@ export default function DoctorNotesForm({
   onSave,
   onCancel,
 }: DoctorNotesFormProps) {
-  const [formData, setFormData] = useState<DoctorNotesFormData>({});
+  // Use context for form data management
+  const {
+    formData,
+    updateFormData,
+    getFormValue,
+    clearFormData,
+    hasUnsavedChanges,
+    lastSaved,
+    isAutoSaving,
+  } = useDoctorNotes();
+
   const [originalFormData, setOriginalFormData] = useState<DoctorNotesFormData>(
     {}
   );
@@ -59,7 +70,7 @@ export default function DoctorNotesForm({
     };
   }, [saving, saveStartTime]);
 
-  // Load existing notes on mount
+  // Load existing notes on mount to check if notes exist in database
   useEffect(() => {
     loadExistingNotes();
   }, [appointmentId]);
@@ -73,13 +84,13 @@ export default function DoctorNotesForm({
       );
       const response = await getDoctorNotes(appointmentId);
       if (response.success && response.doctorNotes?.formData) {
-        console.log("[FORM] Existing notes found, loading form data");
+        console.log("[FORM] Existing notes found in database");
         const loadedData = response.doctorNotes.formData;
-        setFormData(loadedData);
+        // Store original for change detection
         setOriginalFormData(JSON.parse(JSON.stringify(loadedData))); // Deep copy
         setHasExistingNotes(true);
       } else {
-        console.log("[FORM] No existing notes found, starting fresh");
+        console.log("[FORM] No existing notes found in database");
         setHasExistingNotes(false);
       }
     } catch (error: any) {
@@ -89,33 +100,6 @@ export default function DoctorNotesForm({
     } finally {
       setLoading(false);
     }
-  }
-
-  function updateFormData(path: string[], value: any) {
-    setFormData((prev) => {
-      const newData = { ...prev };
-      let current: any = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) {
-          current[path[i]] = {};
-        }
-        current = current[path[i]];
-      }
-      current[path[path.length - 1]] = value;
-      return newData;
-    });
-  }
-
-  function getFormValue(path: string[]): any {
-    let current: any = formData;
-    for (const key of path) {
-      if (current && typeof current === "object") {
-        current = current[key];
-      } else {
-        return undefined;
-      }
-    }
-    return current;
   }
 
   function toggleSection(sectionId: string) {
@@ -224,6 +208,12 @@ export default function DoctorNotesForm({
       // Update original form data after successful save
       setOriginalFormData(JSON.parse(JSON.stringify(formData)));
 
+      // Clear localStorage after successful submission (only if not a draft)
+      if (!isDraft) {
+        clearFormData();
+        console.log("[FORM] Cleared localStorage after successful submission");
+      }
+
       const duration = saveStartTime ? Date.now() - saveStartTime : 0;
       console.log(`[FORM] Save completed in ${duration}ms`);
 
@@ -288,6 +278,31 @@ export default function DoctorNotesForm({
               </p>
             </div>
           )}
+          {/* Auto-save status indicator */}
+          <div className="mt-2 sm:mt-3 mx-2 sm:mx-auto inline-block">
+            {isAutoSaving && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 sm:p-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                <p className="text-sm sm:text-base text-amber-900 font-medium">
+                  Auto-saving...
+                </p>
+              </div>
+            )}
+            {!isAutoSaving && hasUnsavedChanges && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 sm:p-3 flex items-center gap-2">
+                <p className="text-sm sm:text-base text-yellow-900 font-medium">
+                  ⚠️ Unsaved changes
+                </p>
+              </div>
+            )}
+            {!isAutoSaving && !hasUnsavedChanges && lastSaved && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3 flex items-center gap-2">
+                <p className="text-sm sm:text-base text-green-900 font-medium">
+                  ✓ Saved {new Date(lastSaved).toLocaleTimeString()}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section 1: Personal Info */}

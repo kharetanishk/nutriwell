@@ -33,12 +33,68 @@ const formatValue = (value: any): string => {
 const hasValue = (value: any): boolean => {
   if (value === null || value === undefined || value === "") return false;
   if (typeof value === "object" && !Array.isArray(value)) {
-    return Object.keys(value).length > 0;
+    // Check if object has any meaningful values (excluding metadata)
+    const keys = Object.keys(value).filter((k) => !k.startsWith("_"));
+    if (keys.length === 0) return false;
+    // Check if any value in the object has a value
+    return keys.some((k) => hasValue(value[k]));
   }
   if (Array.isArray(value)) {
     return value.length > 0;
   }
   return true;
+};
+
+// Helper to recursively find all fields with values
+const findAllFieldsWithValues = (
+  obj: any,
+  path: string[] = []
+): Array<{ path: string[]; value: any }> => {
+  const fields: Array<{ path: string[]; value: any }> = [];
+
+  if (!obj || typeof obj !== "object") return fields;
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip metadata fields
+    if (key.startsWith("_")) continue;
+
+    const currentPath = [...path, key];
+
+    if (value === null || value === undefined || value === "") {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length > 0) {
+        fields.push({ path: currentPath, value });
+      }
+    } else if (typeof value === "object") {
+      // Recursively check nested objects
+      const nestedFields = findAllFieldsWithValues(value, currentPath);
+      fields.push(...nestedFields);
+
+      // Also add the object itself if it has meaningful content
+      if (Object.keys(value).length > 0 && !Array.isArray(value)) {
+        // Check if it's a simple object with a single value (like {checked: true})
+        const keys = Object.keys(value);
+        const valueObj = value as any;
+        if (keys.length === 1 && keys[0] === "checked" && valueObj.checked) {
+          fields.push({ path: currentPath, value: "Yes" });
+        } else if (
+          keys.length > 1 ||
+          (keys.length === 1 && keys[0] !== "checked")
+        ) {
+          // Object with multiple properties or non-checked single property
+          fields.push({ path: currentPath, value });
+        }
+      }
+    } else {
+      // Primitive value
+      fields.push({ path: currentPath, value });
+    }
+  }
+
+  return fields;
 };
 
 // Field display component
@@ -87,6 +143,40 @@ export default function DoctorNotesPreview({
   isDraft,
   onEdit,
 }: DoctorNotesPreviewProps) {
+  // Console log the entire form data for debugging
+  console.log("==========================================");
+  console.log("[DOCTOR NOTES PREVIEW] Full Form Data JSON:");
+  console.log(JSON.stringify(formData, null, 2));
+  console.log("==========================================");
+  console.log("[DOCTOR NOTES PREVIEW] Form Data Keys:", Object.keys(formData));
+  console.log("[DOCTOR NOTES PREVIEW] Form Data Summary:");
+  console.log(
+    "  - Personal Info:",
+    !!formData.personalHistory || !!formData.reasonForJoiningProgram
+  );
+  console.log("  - Morning Intake:", !!formData.morningIntake);
+  console.log("  - Breakfast:", !!formData.breakfast);
+  if (formData.breakfast) {
+    console.log("  - Breakfast Keys:", Object.keys(formData.breakfast));
+    console.log(
+      "  - Breakfast Data:",
+      JSON.stringify(formData.breakfast, null, 2)
+    );
+  }
+  console.log("  - Mid Morning:", !!formData.midMorning);
+  console.log("  - Lunch:", !!formData.lunch);
+  console.log("  - Mid Day:", !!formData.midDay);
+  console.log("  - Evening Snack:", !!formData.eveningSnack);
+  console.log("  - Dinner:", !!formData.dinner);
+  console.log("  - Weekend Diet:", !!formData.weekendDiet);
+  console.log("  - Questionnaire:", !!formData.questionnaire);
+  console.log("  - Food Frequency:", !!formData.foodFrequency);
+  console.log("  - Health Profile:", !!formData.healthProfile);
+  console.log("  - Diet Prescribed:", !!formData.dietPrescribed);
+  console.log("  - Body Measurements:", !!formData.bodyMeasurements);
+  console.log("  - Notes:", !!formData.notes);
+  console.log("==========================================");
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -323,36 +413,86 @@ export default function DoctorNotesPreview({
                       Breakfast
                     </h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <FieldDisplay
-                        label="Time"
-                        value={formData.breakfast.time}
-                      />
+                      {formData.breakfast.time && (
+                        <FieldDisplay
+                          label="Time"
+                          value={formData.breakfast.time}
+                        />
+                      )}
+
+                      {/* Individual breakfast items with quantity */}
+                      {[
+                        { key: "poha", label: "Poha" },
+                        { key: "upma", label: "Upma" },
+                        { key: "paratha", label: "Paratha" },
+                        { key: "stuffedparatha", label: "Stuffed Paratha" },
+                        { key: "puri", label: "Puri" },
+                        { key: "idlydosa", label: "Idly/Dosa" },
+                        { key: "breadbutter", label: "Bread Butter" },
+                        { key: "sandwich", label: "Sandwich" },
+                        { key: "egg", label: "Egg" },
+                        { key: "juice", label: "Juice" },
+                        { key: "fruits", label: "Fruits" },
+                        { key: "milk", label: "Milk" },
+                      ].map(({ key, label }) => {
+                        const item = (formData.breakfast as any)[key];
+                        if (!item?.checked) return null;
+                        return (
+                          <div key={key} className="bg-white rounded p-2">
+                            <div className="font-medium text-slate-900">
+                              {label}
+                            </div>
+                            {item.quantity && (
+                              <div className="text-sm text-slate-600">
+                                Quantity: {item.quantity}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Roti with Ghee */}
                       {formData.breakfast.roti?.checked && (
                         <>
-                          <div>🍞 Roti: Yes</div>
-                          {formData.breakfast.roti.ghee && (
-                            <FieldDisplay
-                              label="Roti Ghee"
-                              value={formData.breakfast.roti.ghee}
-                            />
-                          )}
+                          <div className="bg-white rounded p-2">
+                            <div className="font-medium text-slate-900">
+                              🍞 Roti: Yes
+                            </div>
+                            {formData.breakfast.roti.ghee && (
+                              <div className="text-sm text-slate-600">
+                                Ghee: {formData.breakfast.roti.ghee}
+                              </div>
+                            )}
+                          </div>
                         </>
                       )}
+
+                      {/* Items array (if exists - legacy format) */}
                       {formData.breakfast.items &&
+                        Array.isArray(formData.breakfast.items) &&
                         formData.breakfast.items
                           .filter((item: any) => item.checked)
                           .map((item: any, idx: number) => (
-                            <div key={idx}>
-                              {item.name}
-                              {item.quantity && ` (${item.quantity})`}
+                            <div key={idx} className="bg-white rounded p-2">
+                              <div className="font-medium text-slate-900">
+                                {item.name}
+                              </div>
+                              {item.quantity && (
+                                <div className="text-sm text-slate-600">
+                                  Quantity: {item.quantity}
+                                </div>
+                              )}
                             </div>
                           ))}
-                      <div className="md:col-span-2">
-                        <FieldDisplay
-                          label="Other"
-                          value={formData.breakfast.other}
-                        />
-                      </div>
+
+                      {formData.breakfast.other && (
+                        <div className="md:col-span-2">
+                          <FieldDisplay
+                            label="Other"
+                            value={formData.breakfast.other}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -547,43 +687,75 @@ export default function DoctorNotesPreview({
                 <div className="bg-slate-50 rounded-lg p-4">
                   <h5 className="font-semibold text-slate-700 mb-3">Mid Day</h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FieldDisplay label="Time" value={formData.midDay.time} />
+                    {formData.midDay.time && (
+                      <FieldDisplay label="Time" value={formData.midDay.time} />
+                    )}
                     {formData.midDay.sweets?.checked && (
-                      <FieldDisplay
-                        label="Sweets"
-                        value={`${formData.midDay.sweets.bowls} bowls`}
-                      />
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">Sweets</div>
+                        {formData.midDay.sweets.bowls ? (
+                          <div className="text-sm text-slate-600">
+                            {formData.midDay.sweets.bowls} bowls
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600">Yes</div>
+                        )}
+                      </div>
                     )}
                     {formData.midDay.dessert?.checked && (
-                      <FieldDisplay
-                        label="Dessert"
-                        value={`${formData.midDay.dessert.bowls} bowls`}
-                      />
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">
+                          Dessert
+                        </div>
+                        {formData.midDay.dessert.bowls ? (
+                          <div className="text-sm text-slate-600">
+                            {formData.midDay.dessert.bowls} bowls
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600">Yes</div>
+                        )}
+                      </div>
                     )}
                     {formData.midDay.laddu?.checked && (
-                      <FieldDisplay
-                        label="Laddu"
-                        value={`${formData.midDay.laddu.bowls} bowls`}
-                      />
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">Laddu</div>
+                        {formData.midDay.laddu.bowls ? (
+                          <div className="text-sm text-slate-600">
+                            {formData.midDay.laddu.bowls} bowls
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600">Yes</div>
+                        )}
+                      </div>
                     )}
                     {formData.midDay.fruits?.checked && (
-                      <FieldDisplay
-                        label="Fruits"
-                        value={`${formData.midDay.fruits.bowls} bowls`}
-                      />
+                      <div className="bg-white rounded p-2">
+                        <div className="font-medium text-slate-900">Fruits</div>
+                        {formData.midDay.fruits.bowls ? (
+                          <div className="text-sm text-slate-600">
+                            {formData.midDay.fruits.bowls} bowls
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600">Yes</div>
+                        )}
+                      </div>
                     )}
-                    <div className="md:col-span-2">
-                      <FieldDisplay
-                        label="Other"
-                        value={formData.midDay.other}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <FieldDisplay
-                        label="Other Quantity"
-                        value={formData.midDay.otherQuantity}
-                      />
-                    </div>
+                    {formData.midDay.other && (
+                      <div className="md:col-span-2">
+                        <FieldDisplay
+                          label="Other"
+                          value={formData.midDay.other}
+                        />
+                      </div>
+                    )}
+                    {formData.midDay.otherQuantity && (
+                      <div className="md:col-span-2">
+                        <FieldDisplay
+                          label="Other Quantity"
+                          value={formData.midDay.otherQuantity}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -600,33 +772,99 @@ export default function DoctorNotesPreview({
                         label="Time"
                         value={formData.eveningSnack.time}
                       />
+
+                      {/* Items array (if exists) */}
                       {formData.eveningSnack.items &&
+                        Array.isArray(formData.eveningSnack.items) &&
                         formData.eveningSnack.items
                           .filter((item: any) => item.checked)
                           .map((item: any, idx: number) => (
-                            <div key={idx}>
-                              {item.name}
-                              {item.quantity && ` (${item.quantity})`}
+                            <div key={idx} className="bg-white rounded p-2">
+                              <div className="font-medium text-slate-900">
+                                {item.name}
+                              </div>
+                              {item.quantity && (
+                                <div className="text-sm text-slate-600">
+                                  Quantity: {item.quantity}
+                                </div>
+                              )}
                             </div>
                           ))}
+
+                      {/* Individual food items stored as separate fields */}
+                      {[
+                        "biscuittoast",
+                        "namkeen",
+                        "chana",
+                        "makhana",
+                        "groundnuts",
+                      ].map((itemKey) => {
+                        const item = (formData.eveningSnack as any)[itemKey];
+                        if (!item?.checked) return null;
+                        return (
+                          <div key={itemKey} className="bg-white rounded p-2">
+                            <div className="font-medium text-slate-900">
+                              {itemKey.charAt(0).toUpperCase() +
+                                itemKey.slice(1).replace(/([A-Z])/g, " $1")}
+                            </div>
+                            {item.quantity && (
+                              <div className="text-sm text-slate-600">
+                                Quantity: {item.quantity}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Items with bowls (Poha, Upma, Sandwich, Dosa) */}
+                      {["poha", "upma", "sandwich", "dosa"].map((itemKey) => {
+                        const item = (formData.eveningSnack as any)[itemKey];
+                        if (!item?.checked) return null;
+                        return (
+                          <div key={itemKey} className="bg-white rounded p-2">
+                            <div className="font-medium text-slate-900">
+                              {itemKey.charAt(0).toUpperCase() +
+                                itemKey.slice(1)}
+                            </div>
+                            {item.bowls && (
+                              <div className="text-sm text-slate-600">
+                                {item.bowls} bowls
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
                       {(formData.eveningSnack as any).teaCoffee?.checked && (
-                        <div>☕ Tea/Coffee: Yes</div>
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            ☕ Tea/Coffee: Yes
+                          </div>
+                        </div>
                       )}
                       {(formData.eveningSnack as any).milk?.checked && (
-                        <div>🥛 Milk: Yes</div>
+                        <div className="bg-white rounded p-2">
+                          <div className="font-medium text-slate-900">
+                            🥛 Milk: Yes
+                          </div>
+                        </div>
                       )}
-                      <div className="md:col-span-2">
-                        <FieldDisplay
-                          label="Other"
-                          value={formData.eveningSnack.other}
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <FieldDisplay
-                          label="Other Quantity"
-                          value={formData.eveningSnack.otherQuantity}
-                        />
-                      </div>
+                      {formData.eveningSnack.other && (
+                        <div className="md:col-span-2">
+                          <FieldDisplay
+                            label="Other"
+                            value={formData.eveningSnack.other}
+                          />
+                        </div>
+                      )}
+                      {formData.eveningSnack.otherQuantity && (
+                        <div className="md:col-span-2">
+                          <FieldDisplay
+                            label="Other Quantity"
+                            value={formData.eveningSnack.otherQuantity}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1020,34 +1258,63 @@ export default function DoctorNotesPreview({
               <div className="space-y-4">
                 {/* Non-Veg */}
                 {formData.foodFrequency.nonVeg &&
-                  Object.keys(formData.foodFrequency.nonVeg).length > 0 && (
+                  (Array.isArray(formData.foodFrequency.nonVeg)
+                    ? formData.foodFrequency.nonVeg.length > 0
+                    : Object.keys(formData.foodFrequency.nonVeg).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Non-Veg
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {Object.entries(formData.foodFrequency.nonVeg).map(
-                          ([key, item]: [string, any]) => {
-                            if (!item?.checked) return null;
-                            return (
-                              <div key={key} className="bg-white rounded p-3">
-                                <div className="font-medium text-slate-900 mb-1">
-                                  {key.charAt(0).toUpperCase() + key.slice(1)}
+                        {Array.isArray(formData.foodFrequency.nonVeg)
+                          ? // Handle as array
+                            formData.foodFrequency.nonVeg
+                              .filter((item: any) => item?.checked)
+                              .map((item: any, idx: number) => (
+                                <div key={idx} className="bg-white rounded p-3">
+                                  <div className="font-medium text-slate-900 mb-1">
+                                    {item.name}
+                                  </div>
+                                  {item.qtyPieces && (
+                                    <div className="text-sm text-slate-600">
+                                      Qty: {item.qtyPieces} pieces
+                                    </div>
+                                  )}
+                                  {item.prepType && (
+                                    <div className="text-sm text-slate-600">
+                                      Prep: {item.prepType}
+                                    </div>
+                                  )}
                                 </div>
-                                {item.qtyPieces && (
-                                  <div className="text-sm text-slate-600">
-                                    Qty: {item.qtyPieces} pieces
+                              ))
+                          : // Handle as object (legacy format)
+                            Object.entries(formData.foodFrequency.nonVeg).map(
+                              ([key, item]: [string, any]) => {
+                                if (!item?.checked) return null;
+                                return (
+                                  <div
+                                    key={key}
+                                    className="bg-white rounded p-3"
+                                  >
+                                    <div className="font-medium text-slate-900 mb-1">
+                                      {key.charAt(0).toUpperCase() +
+                                        key.slice(1)}
+                                    </div>
+                                    {item.qtyPieces && (
+                                      <div className="text-sm text-slate-600">
+                                        Qty: {item.qtyPieces} pieces
+                                      </div>
+                                    )}
+                                    {item.prepType && (
+                                      <div className="text-sm text-slate-600">
+                                        Prep: {item.prepType}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                {item.prepType && (
-                                  <div className="text-sm text-slate-600">
-                                    Prep: {item.prepType}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                        )}
+                                );
+                              }
+                            )}
                       </div>
                     </div>
                   )}
@@ -1174,100 +1441,127 @@ export default function DoctorNotesPreview({
 
                 {/* Lifestyle */}
                 {formData.foodFrequency.lifestyle &&
-                  typeof formData.foodFrequency.lifestyle === "object" &&
-                  !Array.isArray(formData.foodFrequency.lifestyle) &&
-                  Object.keys(formData.foodFrequency.lifestyle).length > 0 && (
+                  (Array.isArray(formData.foodFrequency.lifestyle)
+                    ? formData.foodFrequency.lifestyle.length > 0
+                    : Object.keys(formData.foodFrequency.lifestyle).length >
+                      0) && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Lifestyle
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {(formData.foodFrequency.lifestyle as any).smoking
-                          ?.checked && (
-                          <div className="bg-white rounded p-3">
-                            <div className="font-medium text-slate-900 mb-1">
-                              Smoking
-                            </div>
+                        {Array.isArray(formData.foodFrequency.lifestyle) ? (
+                          // Handle as array
+                          formData.foodFrequency.lifestyle
+                            .filter((item: any) => item?.checked)
+                            .map((item: any, idx: number) => (
+                              <div key={idx} className="bg-white rounded p-3">
+                                <div className="font-medium text-slate-900 mb-1">
+                                  {item.name}
+                                </div>
+                                {item.qty && (
+                                  <div className="text-sm text-slate-600">
+                                    Qty: {item.qty}
+                                  </div>
+                                )}
+                                {item.frequency && (
+                                  <div className="text-sm text-slate-600">
+                                    Frequency: {item.frequency}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                        ) : (
+                          // Handle as object (legacy format)
+                          <>
                             {(formData.foodFrequency.lifestyle as any).smoking
-                              .qty && (
-                              <div className="text-sm text-slate-600">
-                                Qty:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .smoking.qty
-                                }{" "}
-                                cups/pieces
-                              </div>
-                            )}
-                            {(formData.foodFrequency.lifestyle as any).smoking
-                              .frequency && (
-                              <div className="text-sm text-slate-600">
-                                Frequency:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .smoking.frequency
-                                }
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {(formData.foodFrequency.lifestyle as any).tobacco
-                          ?.checked && (
-                          <div className="bg-white rounded p-3">
-                            <div className="font-medium text-slate-900 mb-1">
-                              Tobacco
-                            </div>
-                            {(formData.foodFrequency.lifestyle as any).tobacco
-                              .qty && (
-                              <div className="text-sm text-slate-600">
-                                Qty:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .tobacco.qty
-                                }{" "}
-                                cups/pieces
+                              ?.checked && (
+                              <div className="bg-white rounded p-3">
+                                <div className="font-medium text-slate-900 mb-1">
+                                  Smoking
+                                </div>
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .smoking.qty && (
+                                  <div className="text-sm text-slate-600">
+                                    Qty:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .smoking.qty
+                                    }{" "}
+                                    cups/pieces
+                                  </div>
+                                )}
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .smoking.frequency && (
+                                  <div className="text-sm text-slate-600">
+                                    Frequency:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .smoking.frequency
+                                    }
+                                  </div>
+                                )}
                               </div>
                             )}
                             {(formData.foodFrequency.lifestyle as any).tobacco
-                              .frequency && (
-                              <div className="text-sm text-slate-600">
-                                Frequency:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .tobacco.frequency
-                                }
+                              ?.checked && (
+                              <div className="bg-white rounded p-3">
+                                <div className="font-medium text-slate-900 mb-1">
+                                  Tobacco
+                                </div>
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .tobacco.qty && (
+                                  <div className="text-sm text-slate-600">
+                                    Qty:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .tobacco.qty
+                                    }{" "}
+                                    cups/pieces
+                                  </div>
+                                )}
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .tobacco.frequency && (
+                                  <div className="text-sm text-slate-600">
+                                    Frequency:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .tobacco.frequency
+                                    }
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
-                        )}
-                        {(formData.foodFrequency.lifestyle as any).alcohol
-                          ?.checked && (
-                          <div className="bg-white rounded p-3">
-                            <div className="font-medium text-slate-900 mb-1">
-                              Alcohol
-                            </div>
                             {(formData.foodFrequency.lifestyle as any).alcohol
-                              .qty && (
-                              <div className="text-sm text-slate-600">
-                                Qty:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .alcohol.qty
-                                }{" "}
-                                ml
+                              ?.checked && (
+                              <div className="bg-white rounded p-3">
+                                <div className="font-medium text-slate-900 mb-1">
+                                  Alcohol
+                                </div>
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .alcohol.qty && (
+                                  <div className="text-sm text-slate-600">
+                                    Qty:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .alcohol.qty
+                                    }{" "}
+                                    ml
+                                  </div>
+                                )}
+                                {(formData.foodFrequency.lifestyle as any)
+                                  .alcohol.frequency && (
+                                  <div className="text-sm text-slate-600">
+                                    Frequency:{" "}
+                                    {
+                                      (formData.foodFrequency.lifestyle as any)
+                                        .alcohol.frequency
+                                    }
+                                  </div>
+                                )}
                               </div>
                             )}
-                            {(formData.foodFrequency.lifestyle as any).alcohol
-                              .frequency && (
-                              <div className="text-sm text-slate-600">
-                                Frequency:{" "}
-                                {
-                                  (formData.foodFrequency.lifestyle as any)
-                                    .alcohol.frequency
-                                }
-                              </div>
-                            )}
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1454,43 +1748,81 @@ export default function DoctorNotesPreview({
                   />
                 </div>
 
-                {/* Health Conditions - Format properly, not as JSON */}
+                {/* Health Conditions - Handle both array and object formats */}
                 {formData.healthProfile.conditions &&
-                  Object.keys(formData.healthProfile.conditions).length > 0 && (
+                  (Array.isArray(formData.healthProfile.conditions)
+                    ? formData.healthProfile.conditions.length > 0
+                    : Object.keys(formData.healthProfile.conditions).length >
+                      0) && (
                     <div className="md:col-span-2">
                       <div className="bg-slate-50 rounded-lg p-4">
                         <h5 className="font-semibold text-slate-700 mb-3">
                           Health Conditions
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {Object.entries(
-                            formData.healthProfile.conditions
-                          ).map(
-                            ([conditionName, conditionData]: [string, any]) => {
-                              if (!conditionData?.hasCondition) return null;
-                              return (
-                                <div
-                                  key={conditionName}
-                                  className="bg-white rounded p-3 border border-emerald-200"
-                                >
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {conditionName
-                                      .replace(/([A-Z])/g, " $1")
-                                      .replace(/^./, (str) => str.toUpperCase())
-                                      .trim()}
-                                  </div>
-                                  <div className="text-sm text-emerald-600 font-semibold">
-                                    {conditionData.hasCondition}
-                                  </div>
-                                  {conditionData.notes && (
-                                    <div className="text-xs text-slate-600 mt-1">
-                                      {conditionData.notes}
+                          {Array.isArray(formData.healthProfile.conditions)
+                            ? // Handle as array
+                              formData.healthProfile.conditions
+                                .filter(
+                                  (condition: any) =>
+                                    condition?.hasCondition === "Yes"
+                                )
+                                .map((condition: any, idx: number) => (
+                                  <div
+                                    key={idx}
+                                    className="bg-white rounded p-3 border border-emerald-200"
+                                  >
+                                    <div className="font-medium text-slate-900 mb-1">
+                                      {condition.name}
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            }
-                          )}
+                                    <div className="text-sm text-emerald-600 font-semibold">
+                                      {condition.hasCondition}
+                                    </div>
+                                    {condition.notes && (
+                                      <div className="text-xs text-slate-600 mt-1">
+                                        {condition.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                            : // Handle as object (legacy format)
+                              Object.entries(
+                                formData.healthProfile.conditions
+                              ).map(
+                                ([conditionName, conditionData]: [
+                                  string,
+                                  any
+                                ]) => {
+                                  if (
+                                    !conditionData?.hasCondition ||
+                                    conditionData.hasCondition === "No"
+                                  )
+                                    return null;
+                                  return (
+                                    <div
+                                      key={conditionName}
+                                      className="bg-white rounded p-3 border border-emerald-200"
+                                    >
+                                      <div className="font-medium text-slate-900 mb-1">
+                                        {conditionName
+                                          .replace(/([A-Z])/g, " $1")
+                                          .replace(/^./, (str) =>
+                                            str.toUpperCase()
+                                          )
+                                          .trim()}
+                                      </div>
+                                      <div className="text-sm text-emerald-600 font-semibold">
+                                        {conditionData.hasCondition}
+                                      </div>
+                                      {conditionData.notes && (
+                                        <div className="text-xs text-slate-600 mt-1">
+                                          {conditionData.notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                              )}
                         </div>
                       </div>
                     </div>
@@ -1695,6 +2027,114 @@ export default function DoctorNotesPreview({
             <div className="bg-slate-50 rounded-lg p-4">
               <div className="text-slate-900 whitespace-pre-wrap">
                 {formData.notes}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Catch-all: Render any remaining fields that might have been missed */}
+        {(() => {
+          // Get all top-level keys
+          const allKeys = Object.keys(formData);
+          const renderedSections = new Set([
+            "personalHistory",
+            "reasonForJoiningProgram",
+            "ethnicity",
+            "joiningDate",
+            "expiryDate",
+            "dietPrescriptionDate",
+            "durationOfDiet",
+            "previousDietTaken",
+            "previousDietDetails",
+            "typeOfDietTaken",
+            "maritalStatus",
+            "numberOfChildren",
+            "dietPreference",
+            "wakeupTime",
+            "bedTime",
+            "dayNap",
+            "workoutTiming",
+            "workoutType",
+            "morningIntake",
+            "breakfast",
+            "midMorning",
+            "lunch",
+            "midDay",
+            "eveningSnack",
+            "dinner",
+            "weekendDiet",
+            "questionnaire",
+            "foodFrequency",
+            "healthProfile",
+            "dietPrescribed",
+            "bodyMeasurements",
+            "notes",
+          ]);
+
+          const unrenderedKeys = allKeys.filter(
+            (key) => !renderedSections.has(key)
+          );
+
+          if (unrenderedKeys.length > 0) {
+            console.warn(
+              "[DOCTOR NOTES PREVIEW] Unrendered fields found:",
+              unrenderedKeys
+            );
+            return (
+              <div className="mt-6 pt-6 border-t-2 border-orange-200">
+                <h4 className="text-lg font-semibold text-orange-700 mb-4">
+                  ⚠️ Additional Fields (Not in Standard Sections)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {unrenderedKeys.map((key) => {
+                    const value = (formData as any)[key];
+                    if (!hasValue(value)) return null;
+                    return (
+                      <FieldDisplay
+                        key={key}
+                        label={key
+                          .replace(/([A-Z])/g, " $1")
+                          .replace(/^./, (str) => str.toUpperCase())}
+                        value={value}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* Debug: Show all fields that might be missing */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mt-6 pt-6 border-t-2 border-red-200">
+            <h4 className="text-lg font-semibold text-red-700 mb-4">
+              🔍 Debug: All Form Data Fields
+            </h4>
+            <div className="bg-red-50 rounded-lg p-4 max-h-96 overflow-y-auto mb-4">
+              <pre className="text-xs text-slate-700 whitespace-pre-wrap">
+                {JSON.stringify(formData, null, 2)}
+              </pre>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+              <h5 className="font-semibold text-yellow-800 mb-2">
+                All Fields with Values:
+              </h5>
+              <div className="space-y-1 text-xs">
+                {findAllFieldsWithValues(formData).map((field, idx) => (
+                  <div key={idx} className="text-slate-700">
+                    <span className="font-mono text-yellow-900">
+                      {field.path.join(".")}
+                    </span>
+                    <span className="text-slate-600 ml-2">
+                      ={" "}
+                      {typeof field.value === "object"
+                        ? JSON.stringify(field.value)
+                        : String(field.value)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
