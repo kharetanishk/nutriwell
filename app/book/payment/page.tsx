@@ -6,14 +6,13 @@ import { useBookingForm } from "../context/BookingFormContext";
 import { createOrder, verifyPayment, getExistingOrder } from "@/lib/payment";
 import {
   Loader2,
-  CheckCircle,
   XCircle,
   CreditCard,
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import PendingAppointments from "@/components/payment/PendingAppointments";
+import { updateBookingProgress } from "@/lib/pending-appointments";
 
 declare global {
   interface Window {
@@ -64,7 +63,6 @@ export default function PaymentPage() {
   const [isRazorpayReady, setIsRazorpayReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumingPayment, setResumingPayment] = useState(false);
-  const [showPendingAppointments, setShowPendingAppointments] = useState(true); // Show by default
   const [errorType, setErrorType] = useState<
     "payment" | "network" | "validation" | "session" | "unknown"
   >("unknown");
@@ -73,18 +71,22 @@ export default function PaymentPage() {
   const [paymentResponse, setPaymentResponse] = useState<any>(null); // Store payment response for verification
 
   /* -------------------------------------------------
-      BLOCK DIRECT ACCESS & CHECK FOR PENDING APPOINTMENTS
+      BLOCK DIRECT ACCESS & VALIDATE BOOKING DATA
   -------------------------------------------------- */
   useEffect(() => {
     if (!form.appointmentId || !form.slotId || !form.planSlug) {
-      // If no current booking, show pending appointments
-      setShowPendingAppointments(true);
-      safeToast(
-        "error",
-        "Please complete the booking process first or continue with a pending appointment"
-      );
-      // Don't redirect immediately - let user see pending appointments
+      // If no current booking, redirect to slot selection
+      safeToast("error", "Please complete the booking process first");
+      router.push("/book/slot");
       return;
+    }
+
+    // Update booking progress to PAYMENT when user reaches payment page
+    if (form.appointmentId) {
+      updateBookingProgress(form.appointmentId, "PAYMENT").catch((err) => {
+        console.error("[PAYMENT] Failed to update booking progress:", err);
+        // Non-blocking error
+      });
     }
   }, [form.appointmentId, form.slotId, form.planSlug, router]);
 
@@ -117,7 +119,6 @@ export default function PaymentPage() {
       setIsRazorpayReady(false);
       setError("Payment gateway failed to load. Please refresh the page.");
       setErrorType("network");
-      setShowPendingAppointments(true);
     };
     document.body.appendChild(script);
 
@@ -164,23 +165,20 @@ export default function PaymentPage() {
         if (verifyResponse.success) {
           console.log("[PAYMENT] Payment verified successfully");
 
-          if (verifyResponse.alreadyConfirmed) {
-            safeToast(
-              "success",
-              "Payment already confirmed. Your appointment is confirmed."
-            );
-          } else {
-            safeToast(
-              "success",
-              "Payment successful! Your appointment is confirmed."
-            );
-          }
-
-          // Reset form and redirect to home after a short delay
+          // Reset form
           resetForm();
+          setProcessing(false);
+
+          // Show success toast
+          safeToast(
+            "success",
+            "Payment successful! Your appointment is confirmed."
+          );
+
+          // Redirect to profile page (My Appointments section)
           setTimeout(() => {
-            router.push("/");
-          }, 2000);
+            router.push("/profile");
+          }, 1000);
         } else {
           throw new Error(
             verifyResponse.error || "Payment verification failed"
@@ -197,7 +195,6 @@ export default function PaymentPage() {
         setErrorType("payment");
         setProcessing(false);
         paymentInitiatedRef.current = false; // Allow retry
-        setShowPendingAppointments(true); // Show pending appointments on verification failure
       }
     };
 
@@ -271,7 +268,6 @@ export default function PaymentPage() {
                 }
                 setProcessing(false);
                 paymentInitiatedRef.current = false; // Allow retry
-                setShowPendingAppointments(true); // Show pending appointments when cancelled
               }
             } catch (err) {
               console.error("[PAYMENT] Ondismiss error:", err);
@@ -290,6 +286,16 @@ export default function PaymentPage() {
         response.error?.reason ||
         "Payment failed. Please try again.";
 
+      // Update booking progress to PAYMENT (user is still at payment step)
+      if (form.appointmentId) {
+        updateBookingProgress(form.appointmentId, "PAYMENT").catch((err) => {
+          console.error(
+            "[PAYMENT] Failed to update booking progress on failure:",
+            err
+          );
+        });
+      }
+
       // Defer toast and state updates to main window context
       setTimeout(() => {
         try {
@@ -299,7 +305,6 @@ export default function PaymentPage() {
             setErrorType("payment");
             setProcessing(false);
             paymentInitiatedRef.current = false; // Allow retry
-            setShowPendingAppointments(true); // Show pending appointments on failure
           }
         } catch (err) {
           console.error("[PAYMENT] Payment failed handler error:", err);
@@ -454,43 +459,8 @@ export default function PaymentPage() {
       paymentInitiatedRef.current = false; // Allow retry
       setLoading(false);
       setResumingPayment(false);
-      setShowPendingAppointments(true); // Show pending appointments on error
     }
   }
-
-  /* -------------------------------------------------
-      HANDLE RESUME PAYMENT FROM PENDING APPOINTMENTS
-  -------------------------------------------------- */
-  const handleResumePayment = (appointmentId: string, orderId: string) => {
-    // Update form context with the appointment ID
-    setForm({
-      ...form,
-      appointmentId,
-    });
-
-    // Fetch order details and start payment
-    getExistingOrder(appointmentId)
-      .then((orderResponse) => {
-        if (orderResponse.success && orderResponse.order) {
-          setOrderCreated(true);
-          setError(null);
-          setShowPendingAppointments(false);
-          startRazorpayPayment(orderResponse.order);
-        } else {
-          throw new Error(
-            orderResponse.error || "Failed to fetch payment order"
-          );
-        }
-      })
-      .catch((error: any) => {
-        console.error("[PAYMENT] Failed to resume payment:", error);
-        safeToast(
-          "error",
-          error?.message || "Failed to resume payment. Please try again."
-        );
-        setError(error?.message || "Failed to resume payment");
-      });
-  };
 
   /* -------------------------------------------------
       UI RENDER
@@ -622,24 +592,10 @@ export default function PaymentPage() {
                       </button>
                     </>
                   )}
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setShowPendingAppointments(true);
-                    }}
-                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                  >
-                    View Pending Appointments
-                  </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Pending Appointments Section */}
-        {showPendingAppointments && (
-          <PendingAppointments onResumePayment={handleResumePayment} />
         )}
 
         {/* Payment Button */}

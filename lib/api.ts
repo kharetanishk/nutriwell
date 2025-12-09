@@ -8,26 +8,13 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add Authorization header if token exists
+// Request interceptor - authentication handled via httpOnly cookies
+// No need to add Authorization header from localStorage (XSS risk)
+// Cookies are automatically sent with requests via withCredentials: true
 api.interceptors.request.use(
   (config) => {
-    // Try to get token from localStorage (if stored there)
-    if (typeof window !== "undefined") {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          // If we have a token stored separately, use it
-          // Otherwise, rely on cookies
-          const token = localStorage.getItem("auth_token");
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
-        } catch (e) {
-          // Ignore parsing errors
-        }
-      }
-    }
+    // Authentication is handled via httpOnly cookies
+    // Tokens are NOT stored in localStorage to prevent XSS attacks
     return config;
   },
   (error) => {
@@ -51,7 +38,7 @@ api.interceptors.response.use(
         if (!url.includes("/auth/me") && !url.includes("/auth/logout")) {
           if (typeof window !== "undefined") {
             localStorage.removeItem("user");
-            localStorage.removeItem("auth_token");
+            // Note: auth_token is not stored in localStorage (uses httpOnly cookies)
             // Dispatch custom event for AuthContext to listen to
             window.dispatchEvent(new CustomEvent("auth:logout"));
           }

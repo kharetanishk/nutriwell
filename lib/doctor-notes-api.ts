@@ -232,7 +232,8 @@ export interface DoctorNotesFormData {
     date?: string;
     durationOfDiet?: string;
     dietChart?: string;
-    dietChartFile?: File | null;
+    dietChartFile?: File | null; // Deprecated: use dietChartFiles instead
+    dietChartFiles?: File[]; // Array of PDF files (max 10)
     code?: string;
   };
 
@@ -277,6 +278,17 @@ export interface SaveDoctorNotesResponse {
   };
 }
 
+export interface DoctorNoteAttachment {
+  id: string;
+  fileName: string;
+  fileUrl: string | null;
+  mimeType: string;
+  sizeInBytes: number;
+  fileCategory: string;
+  section: string | null;
+  createdAt: string;
+}
+
 export interface GetDoctorNotesResponse {
   success: boolean;
   doctorNotes?: {
@@ -288,6 +300,7 @@ export interface GetDoctorNotesResponse {
     isCompleted: boolean;
     createdAt: string;
     updatedAt: string;
+    attachments?: DoctorNoteAttachment[];
   };
 }
 
@@ -316,13 +329,21 @@ export async function saveDoctorNotes(
   formData.append("formData", JSON.stringify(data.formData));
   formData.append("isDraft", String(data.isDraft ?? false));
 
-  // Handle file upload if present
-  if (data.formData.dietPrescribed?.dietChartFile) {
+  // Handle multiple file uploads if present
+  const dietChartFiles = data.formData.dietPrescribed?.dietChartFiles;
+  if (
+    dietChartFiles &&
+    Array.isArray(dietChartFiles) &&
+    dietChartFiles.length > 0
+  ) {
     console.log(
-      "[API] saveDoctorNotes - Including diet chart file:",
-      data.formData.dietPrescribed.dietChartFile.name
+      "[API] saveDoctorNotes - Including diet chart files:",
+      dietChartFiles.length,
+      "file(s)"
     );
-    formData.append("dietChart", data.formData.dietPrescribed.dietChartFile);
+    dietChartFiles.forEach((file: File) => {
+      formData.append("dietCharts", file);
+    });
   }
 
   try {
@@ -343,10 +364,47 @@ export async function saveDoctorNotes(
     return res.data;
   } catch (error: any) {
     const duration = Date.now() - startTime;
+
+    // Log full error details for debugging
+    const errorDetails: any = {
+      errorType: error?.constructor?.name || typeof error,
+      errorMessage: error?.message || "Unknown error",
+      errorStatus: error?.response?.status,
+      errorStatusText: error?.response?.statusText,
+    };
+
+    // Add response data if available
+    if (error?.response?.data) {
+      errorDetails.errorResponse = error.response.data;
+      // Extract errors array if present
+      if (error.response.data.errors) {
+        errorDetails.errors = error.response.data.errors;
+      }
+    }
+
+    // Add request config if available
+    if (error?.config) {
+      errorDetails.requestConfig = {
+        url: error.config.url,
+        method: error.config.method,
+      };
+    }
+
+    // Add request info if available (network errors)
+    if (error?.request) {
+      errorDetails.requestInfo = "Request made but no response received";
+    }
+
+    // Add stack trace for debugging
+    if (error?.stack) {
+      errorDetails.stack = error.stack;
+    }
+
     console.error(
       `[API] saveDoctorNotes - Error (${duration}ms):`,
-      error?.response?.data || error?.message
+      errorDetails
     );
+
     throw error;
   }
 }
@@ -378,6 +436,23 @@ export async function updateDoctorNotes(
   formData.append("formData", JSON.stringify(partialData));
   formData.append("isDraft", String(isDraft));
 
+  // Handle multiple file uploads if present
+  const dietChartFiles = partialData.dietPrescribed?.dietChartFiles;
+  if (
+    dietChartFiles &&
+    Array.isArray(dietChartFiles) &&
+    dietChartFiles.length > 0
+  ) {
+    console.log(
+      "[API] updateDoctorNotes - Including diet chart files:",
+      dietChartFiles.length,
+      "file(s)"
+    );
+    dietChartFiles.forEach((file: File) => {
+      formData.append("dietCharts", file);
+    });
+  }
+
   try {
     const res = await api.patch<SaveDoctorNotesResponse>(
       `admin/doctor-notes/${appointmentId}`,
@@ -396,10 +471,47 @@ export async function updateDoctorNotes(
     return res.data;
   } catch (error: any) {
     const duration = Date.now() - startTime;
+
+    // Log full error details for debugging
+    const errorDetails: any = {
+      errorType: error?.constructor?.name || typeof error,
+      errorMessage: error?.message || "Unknown error",
+      errorStatus: error?.response?.status,
+      errorStatusText: error?.response?.statusText,
+    };
+
+    // Add response data if available
+    if (error?.response?.data) {
+      errorDetails.errorResponse = error.response.data;
+      // Extract errors array if present
+      if (error.response.data.errors) {
+        errorDetails.errors = error.response.data.errors;
+      }
+    }
+
+    // Add request config if available
+    if (error?.config) {
+      errorDetails.requestConfig = {
+        url: error.config.url,
+        method: error.config.method,
+      };
+    }
+
+    // Add request info if available (network errors)
+    if (error?.request) {
+      errorDetails.requestInfo = "Request made but no response received";
+    }
+
+    // Add stack trace for debugging
+    if (error?.stack) {
+      errorDetails.stack = error.stack;
+    }
+
     console.error(
       `[API] updateDoctorNotes - Error (${duration}ms):`,
-      error?.response?.data || error?.message
+      errorDetails
     );
+
     throw error;
   }
 }
@@ -435,6 +547,36 @@ export async function getDoctorNotes(
     const duration = Date.now() - startTime;
     console.error(
       `[API] getDoctorNotes - Error (${duration}ms):`,
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}
+
+/**
+ * Delete a doctor note attachment (PDF)
+ */
+export async function deleteDoctorNoteAttachment(
+  attachmentId: string
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  console.log(
+    "[API] deleteDoctorNoteAttachment - Deleting attachment:",
+    attachmentId
+  );
+  const startTime = Date.now();
+  try {
+    const res = await api.delete<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`admin/doctor-notes/attachment/${attachmentId}`);
+    const duration = Date.now() - startTime;
+    console.log(`[API] deleteDoctorNoteAttachment - Success (${duration}ms)`);
+    return res.data;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(
+      `[API] deleteDoctorNoteAttachment - Error (${duration}ms):`,
       error?.response?.data || error?.message
     );
     throw error;

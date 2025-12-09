@@ -589,6 +589,18 @@ export default function AppointmentDetailsPage() {
               createdAt={doctorNotes.createdAt}
               updatedAt={doctorNotes.updatedAt}
               isDraft={doctorNotes.isDraft}
+              attachments={doctorNotes.attachments}
+              onAttachmentDeleted={async () => {
+                // Refresh doctor notes after deletion
+                try {
+                  const response = await getDoctorNotes(appointmentId);
+                  if (response.success && response.doctorNotes) {
+                    setDoctorNotes(response.doctorNotes);
+                  }
+                } catch (error) {
+                  console.error("Failed to refresh doctor notes:", error);
+                }
+              }}
               onEdit={() =>
                 router.push(`/admin/appointments/${appointmentId}/notes`)
               }

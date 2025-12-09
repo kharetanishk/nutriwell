@@ -23,50 +23,57 @@ export default function SlotPage() {
       BLOCK DIRECT ACCESS
   -------------------------------------------------- */
   useEffect(() => {
-    if (!form.planSlug) {
-      router.replace("/services");
-      return;
-    }
+    // Allow a small delay for form context to load from localStorage
+    const timer = setTimeout(() => {
+      if (!form.planSlug) {
+        console.log("[SLOT PAGE] Missing planSlug, redirecting to services");
+        router.replace("/services");
+        return;
+      }
 
-    // If patient exists but no appointmentId, create appointment
-    // This handles the case when user selects existing patient from PlanCard
-    if (form.patientId && !form.appointmentId) {
-      const createAppointmentForExistingPatient = async () => {
-        try {
-          const { createAppointment } = await import("@/lib/appointment");
-          // TODO: For testing purposes, using ₹1 for general-consultation.
-          // This will be changed to use actual plan price from backend after successful testing.
-          const planPrice =
-            form.planSlug === "general-consultation"
-              ? 1
-              : form.planPriceRaw || 1;
+      // If patient exists but no appointmentId, create appointment
+      // This handles the case when user selects existing patient from PlanCard
+      if (form.patientId && !form.appointmentId) {
+        const createAppointmentForExistingPatient = async () => {
+          try {
+            const { createAppointment } = await import("@/lib/appointment");
+            // TODO: For testing purposes, using ₹1 for general-consultation.
+            // This will be changed to use actual plan price from backend after successful testing.
+            const planPrice =
+              form.planSlug === "general-consultation"
+                ? 1
+                : form.planPriceRaw || 1;
 
-          // planDuration is required - use "40 min" for general consultation if not provided
-          const planDuration = form.planPackageDuration || "40 min";
+            // planDuration is required - use "40 min" for general consultation if not provided
+            const planDuration = form.planPackageDuration || "40 min";
 
-          const appointmentResponse = await createAppointment({
-            patientId: form.patientId!,
-            planSlug: form.planSlug!,
-            planName: form.planName!,
-            planPrice: planPrice, // Using ₹1 for testing (general-consultation)
-            planDuration: planDuration, // Always provide a duration (required field)
-            planPackageName: form.planPackageName || undefined,
-            appointmentMode: "IN_PERSON", // Default, can be changed
-          });
+            const appointmentResponse = await createAppointment({
+              bookingProgress: "USER_DETAILS", // User form filled, next is recall
+              patientId: form.patientId!,
+              planSlug: form.planSlug!,
+              planName: form.planName!,
+              planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+              planDuration: planDuration, // Always provide a duration (required field)
+              planPackageName: form.planPackageName || undefined,
+              appointmentMode: "IN_PERSON", // Default, can be changed
+            });
 
-          setForm({ appointmentId: appointmentResponse.data.id });
-        } catch (error: any) {
-          console.error(
-            "Failed to create appointment for existing patient:",
-            error
-          );
-          toast.error("Failed to initialize appointment. Please try again.");
-        }
-      };
+            setForm({ appointmentId: appointmentResponse.data.id });
+          } catch (error: any) {
+            console.error(
+              "Failed to create appointment for existing patient:",
+              error
+            );
+            toast.error("Failed to initialize appointment. Please try again.");
+          }
+        };
 
-      createAppointmentForExistingPatient();
-    }
-  }, [form.planSlug, form.patientId, form.appointmentId]);
+        createAppointmentForExistingPatient();
+      }
+    }, 200); // Small delay to allow form context to load
+
+    return () => clearTimeout(timer);
+  }, [form.planSlug, form.patientId, form.appointmentId, router]);
 
   /* -------------------------------------------------
       SLOT STATE
@@ -219,6 +226,7 @@ export default function SlotPage() {
       try {
         await updateAppointmentSlot(form.appointmentId, {
           slotId: selectedSlot.id,
+          bookingProgress: "SLOT", // Slot selected, next step is payment
         });
 
         setForm({

@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getMyAppointments, UserAppointment } from "@/lib/appointments-user";
+import {
+  getPendingAppointments,
+  getNextStepUrl,
+  getStepLabel,
+  updateBookingProgress,
+  type PendingAppointment,
+} from "@/lib/pending-appointments";
 import { getExistingOrder } from "@/lib/payment";
+import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import {
   Calendar,
   Clock,
@@ -11,21 +18,25 @@ import {
   AlertCircle,
   RefreshCw,
   ArrowRight,
+  User,
+  ClipboardList,
+  MapPin,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
 interface PendingAppointmentsProps {
-  onResumePayment: (appointmentId: string, orderId: string) => void;
+  onResumePayment?: (appointmentId: string, orderId: string) => void;
 }
 
 export default function PendingAppointments({
   onResumePayment,
 }: PendingAppointmentsProps) {
-  const [appointments, setAppointments] = useState<UserAppointment[]>([]);
+  const [appointments, setAppointments] = useState<PendingAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<string | null>(null);
   const router = useRouter();
+  const { setForm } = useBookingForm();
 
   useEffect(() => {
     fetchPendingAppointments();
@@ -34,51 +45,143 @@ export default function PendingAppointments({
   const fetchPendingAppointments = async () => {
     try {
       setLoading(true);
-      const response = await getMyAppointments();
-      // Filter for PENDING appointments with payment status PENDING or FAILED
-      const pending = response.appointments.filter(
-        (apt) =>
-          apt.status === "PENDING" &&
-          (apt.paymentStatus === "PENDING" ||
-            apt.paymentStatus === "FAILED" ||
-            apt.paymentStatus === "INITIATED")
-      );
-      setAppointments(pending);
+      console.log("[PENDING APPOINTMENTS] Fetching pending appointments...");
+      const response = await getPendingAppointments();
+      console.log("[PENDING APPOINTMENTS] Response:", response);
+
+      if (response.success && Array.isArray(response.appointments)) {
+        console.log(
+          `[PENDING APPOINTMENTS] Found ${response.appointments.length} pending appointments`
+        );
+        setAppointments(response.appointments);
+      } else {
+        console.warn(
+          "[PENDING APPOINTMENTS] Unexpected response format:",
+          response
+        );
+        setAppointments([]);
+      }
     } catch (error: any) {
-      console.error("Failed to fetch pending appointments:", error);
-      toast.error("Failed to load pending appointments");
+      console.error(
+        "[PENDING APPOINTMENTS] Failed to fetch pending appointments:",
+        error
+      );
+      console.error("[PENDING APPOINTMENTS] Error details:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to load pending appointments"
+      );
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleContinuePayment = async (appointmentId: string) => {
+  const handleResumeBooking = async (appointment: PendingAppointment) => {
     try {
-      setResuming(appointmentId);
-      toast.loading("Resuming payment...", { id: "resume-payment" });
+      setResuming(appointment.id);
+      toast.loading("Resuming booking...", { id: `resume-${appointment.id}` });
 
-      // Fetch existing order
-      const orderResponse = await getExistingOrder(appointmentId);
+      console.log("[RESUME BOOKING] Resuming appointment:", {
+        appointmentId: appointment.id,
+        bookingProgress: appointment.bookingProgress,
+        patientId: appointment.patientId,
+        slotId: appointment.slotId,
+        planSlug: appointment.planSlug,
+      });
 
-      if (orderResponse.success && orderResponse.order) {
-        toast.success("Payment order found. Redirecting...", {
-          id: "resume-payment",
-        });
-        // Call parent handler to resume payment
-        onResumePayment(appointmentId, orderResponse.order.id);
-      } else {
-        throw new Error(
-          orderResponse.error ||
-            "No payment order found. Please start a new booking."
-        );
+      // Determine next step based on booking progress
+      const nextStep = getNextStepUrl(appointment.bookingProgress);
+      console.log("[RESUME BOOKING] Next step:", nextStep);
+
+      // Load appointment data into booking form context
+      // Include all required fields to prevent redirects
+      // Ensure appointmentMode is valid
+      const appointmentMode =
+        appointment.mode === "IN_PERSON" || appointment.mode === "ONLINE"
+          ? appointment.mode
+          : "IN_PERSON"; // Default fallback
+
+      const formData = {
+        appointmentId: appointment.id,
+        patientId: appointment.patientId,
+        slotId: appointment.slotId || null,
+        planSlug: appointment.planSlug,
+        planName: appointment.planName,
+        planPrice: appointment.planPrice.toString(),
+        planPriceRaw: appointment.planPrice,
+        planDuration: appointment.planDuration,
+        planPackageDuration: appointment.planDuration, // Also set this for compatibility
+        planPackageName: appointment.planPackageName || null,
+        appointmentMode: appointmentMode, // Always valid: "IN_PERSON" or "ONLINE"
+      };
+
+      console.log("[RESUME BOOKING] Updating form context with:", formData);
+      setForm(formData);
+
+      // Wait a bit for form context to update and persist to localStorage
+      // This ensures the form data is saved before navigation
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Double-check form was updated
+      console.log("[RESUME BOOKING] Form updated, verifying data persisted...");
+
+      // If next step is payment and we have onResumePayment handler, try to resume payment
+      if (
+        nextStep === "/book/payment" &&
+        appointment.slotId &&
+        onResumePayment
+      ) {
+        try {
+          console.log("[RESUME BOOKING] Attempting to resume payment...");
+          const orderResponse = await getExistingOrder(appointment.id);
+          if (orderResponse.success && orderResponse.order) {
+            console.log(
+              "[RESUME BOOKING] Found existing order, resuming payment"
+            );
+            toast.success("Resuming payment...", {
+              id: `resume-${appointment.id}`,
+            });
+            onResumePayment(appointment.id, orderResponse.order.id);
+            return;
+          }
+        } catch (error) {
+          // If no order exists, just continue to payment page
+          console.log(
+            "[RESUME BOOKING] No existing order, continuing to payment page"
+          );
+        }
       }
+
+      // Navigate to next step
+      console.log("[RESUME BOOKING] Navigating to:", nextStep);
+      toast.success(
+        `Continuing from ${getStepLabel(appointment.bookingProgress)}...`,
+        {
+          id: `resume-${appointment.id}`,
+        }
+      );
+
+      // Use replace instead of push to avoid back button issues
+      router.push(nextStep);
     } catch (error: any) {
-      console.error("Failed to resume payment:", error);
+      console.error("[RESUME BOOKING] Failed to resume booking:", error);
+      console.error("[RESUME BOOKING] Error details:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
       toast.error(
         error?.response?.data?.error ||
+          error?.response?.data?.message ||
           error?.message ||
-          "Failed to resume payment. Please try booking again.",
-        { id: "resume-payment" }
+          "Failed to resume booking. Please try again.",
+        { id: `resume-${appointment.id}` }
       );
     } finally {
       setResuming(null);
@@ -101,10 +204,43 @@ export default function PendingAppointments({
     });
   };
 
+  const getProgressIcon = (progress: string | null) => {
+    switch (progress) {
+      case "USER_DETAILS":
+        return User;
+      case "RECALL":
+        return ClipboardList;
+      case "SLOT":
+        return Clock;
+      case "PAYMENT":
+        return CreditCard;
+      default:
+        return AlertCircle;
+    }
+  };
+
+  const getProgressColor = (progress: string | null) => {
+    switch (progress) {
+      case "USER_DETAILS":
+        return "bg-blue-100 text-blue-800";
+      case "RECALL":
+        return "bg-purple-100 text-purple-800";
+      case "SLOT":
+        return "bg-yellow-100 text-yellow-800";
+      case "PAYMENT":
+        return "bg-orange-100 text-orange-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin" />
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+        <span className="ml-2 text-slate-600">
+          Loading pending appointments...
+        </span>
       </div>
     );
   }
@@ -114,103 +250,156 @@ export default function PendingAppointments({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-6 text-center"
+        className="bg-white rounded-xl border-2 border-slate-200 p-8 text-center"
       >
-        <p className="text-slate-600 text-sm">
-          No pending appointments found. Start a new booking to continue.
+        <AlertCircle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          No Pending Appointments
+        </h3>
+        <p className="text-slate-600">
+          You don't have any pending appointments. Start a new booking to
+          continue.
         </p>
       </motion.div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mt-8 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-6"
-    >
-      <div className="flex items-start gap-3 mb-4">
-        <AlertCircle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-amber-900 mb-1">
-            Continue Where You Left Off
-          </h3>
-          <p className="text-sm text-amber-700">
-            You have pending appointments waiting for payment. Complete the
-            payment to confirm your booking.
+          <h2 className="text-2xl font-bold text-slate-900">
+            Pending Appointments
+          </h2>
+          <p className="text-slate-600 mt-1">
+            Continue where you left off with your booking
           </p>
         </div>
+        <button
+          onClick={fetchPendingAppointments}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
       </div>
 
-      <div className="space-y-4 mt-6">
-        {appointments.map((appointment) => (
+      {appointments.map((appointment) => {
+        const ProgressIcon = getProgressIcon(appointment.bookingProgress);
+        const isResuming = resuming === appointment.id;
+
+        return (
           <motion.div
             key={appointment.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-lg border border-amber-200 p-4 shadow-sm hover:shadow-md transition-shadow"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl border-2 border-slate-200 p-6 hover:border-emerald-300 transition-colors"
           >
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-slate-800">
-                    {appointment.planName}
-                  </h4>
-                  {appointment.planPackageName && (
-                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded">
-                      {appointment.planPackageName}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4" />
-                    <span>{formatDate(appointment.startAt)}</span>
-                  </div>
-                  {appointment.slot && (
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" />
-                      <span>{formatTime(appointment.slot.startAt)}</span>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    <div
+                      className={`w-12 h-12 rounded-lg flex items-center justify-center ${getProgressColor(
+                        appointment.bookingProgress
+                      )}`}
+                    >
+                      <ProgressIcon className="w-6 h-6" />
                     </div>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <CreditCard className="w-4 h-4" />
-                    <span className="font-medium text-emerald-600">
-                      ₹{appointment.amount || appointment.planPrice}
-                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        {appointment.planName}
+                      </h3>
+                      {appointment.planPackageName && (
+                        <span className="text-sm text-slate-500">
+                          ({appointment.planPackageName})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span>{appointment.patient.name}</span>
+                      </div>
+
+                      {appointment.slot ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>{formatDate(appointment.slot.startAt)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            <span>
+                              {formatTime(appointment.slot.startAt)} -{" "}
+                              {formatTime(appointment.slot.endAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            <span className="capitalize">
+                              {appointment.slot.mode
+                                .toLowerCase()
+                                .replace("_", " ")}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 text-amber-600">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Slot not selected yet</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Status:</span>
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                          Pending
+                        </span>
+                        {appointment.bookingProgress && (
+                          <>
+                            <span className="text-slate-400">•</span>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-semibold ${getProgressColor(
+                                appointment.bookingProgress
+                              )}`}
+                            >
+                              {getStepLabel(appointment.bookingProgress)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {appointment.paymentStatus === "FAILED" && (
-                  <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-2 py-1 rounded w-fit">
-                    <AlertCircle className="w-3 h-3" />
-                    Payment Failed
-                  </div>
-                )}
               </div>
 
-              <button
-                onClick={() => handleContinuePayment(appointment.id)}
-                disabled={resuming === appointment.id}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-              >
-                {resuming === appointment.id ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Resuming...
-                  </>
-                ) : (
-                  <>
-                    Continue Payment
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+              <div className="flex-shrink-0">
+                <button
+                  onClick={() => handleResumeBooking(appointment)}
+                  disabled={isResuming}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isResuming ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Resuming...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue Booking</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </motion.div>
-        ))}
-      </div>
-    </motion.div>
+        );
+      })}
+    </div>
   );
 }

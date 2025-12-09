@@ -163,11 +163,51 @@ export default function DoctorNotesForm({
     return changed;
   }
 
+  // Helper function to format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+  };
+
   async function handleSubmit(isDraft: boolean = false) {
     setSaving(true);
     setSaveStartTime(Date.now());
 
     try {
+      // Validate file sizes before submission
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      const filesToValidate = formData.dietPrescribed?.dietChartFiles || [];
+      const oversizedFiles = filesToValidate.filter(
+        (file: File) => file.size > MAX_FILE_SIZE
+      );
+
+      if (oversizedFiles.length > 0) {
+        const errorMessages = oversizedFiles.map(
+          (file: File) =>
+            `${file.name}: File too large! Maximum allowed size is 10MB. (${formatFileSize(file.size)})`
+        );
+        errorMessages.forEach((msg) => {
+          toast.error(msg, {
+            duration: 6000,
+            style: {
+              background: "#fee2e2",
+              color: "#991b1b",
+              border: "1px solid #fca5a5",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              fontSize: "14px",
+              maxWidth: "500px",
+            },
+          });
+        });
+        setSaving(false);
+        setSaveStartTime(null);
+        return;
+      }
+
       // Check if this is a partial update (has existing notes and only some fields changed)
       const changedFields = hasExistingNotes
         ? getChangedFields(originalFormData, formData)
@@ -227,13 +267,49 @@ export default function DoctorNotesForm({
       if (onSave) onSave();
     } catch (error: any) {
       const duration = saveStartTime ? Date.now() - saveStartTime : 0;
-      console.error(
-        `[FORM] Failed to save doctor notes (${duration}ms):`,
-        error
-      );
-      toast.error(
-        error?.response?.data?.error || "Failed to save doctor notes"
-      );
+      
+      // Log full error details for debugging
+      console.error(`[FORM] Failed to save doctor notes (${duration}ms):`, {
+        error,
+        errorType: error?.constructor?.name,
+        errorMessage: error?.message,
+        errorResponse: error?.response?.data,
+        errorStatus: error?.response?.status,
+        errorStatusText: error?.response?.statusText,
+        errorStack: error?.stack,
+      });
+      
+      // Extract error message from various possible formats
+      let errorMessage = "Failed to save doctor notes";
+      
+      // Check for validation errors (array of error messages)
+      if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        errorMessage = error.response.data.errors.join(". ");
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error?.response?.statusText) {
+        errorMessage = `${error.response.status} ${error.response.statusText}`;
+      }
+      
+      // Show error toast with better formatting
+      toast.error(errorMessage, {
+        duration: 6000,
+        style: {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "1px solid #fca5a5",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          maxWidth: "500px",
+        },
+      });
     } finally {
       setSaving(false);
       setSaveStartTime(null);
@@ -386,13 +462,21 @@ export default function DoctorNotesForm({
             <Input
               label="Number of Children"
               type="number"
-              value={getFormValue(["numberOfChildren"]) || ""}
-              onChange={(val) =>
+              value={
+                getFormValue(["numberOfChildren"]) !== undefined &&
+                getFormValue(["numberOfChildren"]) !== null
+                  ? getFormValue(["numberOfChildren"])
+                  : ""
+              }
+              onChange={(val) => {
+                const numVal = val === "" ? 0 : val ? parseInt(val) : undefined;
                 updateFormData(
                   ["numberOfChildren"],
-                  val ? parseInt(val) : undefined
-                )
-              }
+                  numVal !== undefined && numVal !== null && !isNaN(numVal)
+                    ? numVal
+                    : 0
+                );
+              }}
             />
             <Select
               label="Diet Preference"
@@ -3105,7 +3189,114 @@ function DietPrescribedSection({
   getFormValue,
 }: any) {
   const dietPrescribed = getFormValue(["dietPrescribed"]) || {};
-  const [dietChartFile, setDietChartFile] = React.useState<File | null>(null);
+  const [dietChartFiles, setDietChartFiles] = React.useState<File[]>([]);
+  const [fileErrors, setFileErrors] = React.useState<{
+    [fileName: string]: string;
+  }>({});
+  const [dragActive, setDragActive] = React.useState(false);
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+  };
+
+  const validateAndAddFiles = (files: File[]) => {
+    const errors: { [fileName: string]: string } = {};
+    const validFiles: File[] = [];
+
+    files.forEach((file) => {
+      // Check if PDF
+      if (file.type !== "application/pdf") {
+        errors[file.name] = "Only PDF files are allowed";
+        return;
+      }
+
+      // Check file size (10MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        errors[file.name] = `File too large! Maximum allowed size is 10MB. (${formatFileSize(file.size)})`;
+        return;
+      }
+
+      // Check if file already exists
+      if (dietChartFiles.some((f) => f.name === file.name && f.size === file.size)) {
+        errors[file.name] = "This file is already added";
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    // Show errors for invalid files
+    if (Object.keys(errors).length > 0) {
+      setFileErrors((prev) => ({ ...prev, ...errors }));
+      // Show toast for errors
+      Object.entries(errors).forEach(([fileName, error]) => {
+        toast.error(`${fileName}: ${error}`, {
+          duration: 5000,
+          style: {
+            background: "#fee2e2",
+            color: "#991b1b",
+            border: "1px solid #fca5a5",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            maxWidth: "500px",
+          },
+        });
+      });
+    }
+
+    // Add valid files (max 10 total)
+    if (validFiles.length > 0) {
+      const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 10);
+      setDietChartFiles(updatedFiles);
+      updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
+      
+      if (validFiles.length > 0) {
+        toast.success(`Successfully added ${validFiles.length} file(s)`, {
+          duration: 3000,
+        });
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      validateAndAddFiles(files);
+      e.target.value = ""; // Clear input after processing
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      validateAndAddFiles(files);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    const fileToRemove = dietChartFiles[index];
+    const updatedFiles = dietChartFiles.filter((_, i) => i !== index);
+    setDietChartFiles(updatedFiles);
+    updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
+    
+    // Clear error for removed file
+    if (fileToRemove && fileErrors[fileToRemove.name]) {
+      const newErrors = { ...fileErrors };
+      delete newErrors[fileToRemove.name];
+      setFileErrors(newErrors);
+    }
+    
+    toast.success("File removed", { duration: 2000 });
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3155,25 +3346,164 @@ function DietPrescribedSection({
       </div>
       <div className="md:col-span-2">
         <div className="input-group">
-          <label className="block font-semibold mb-2 text-slate-700 text-sm sm:text-base">
-            Upload Diet Chart (PDF)
+          <label className="block font-semibold mb-3 text-slate-700 text-sm sm:text-base">
+            Upload Diet Charts (PDF)
           </label>
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                setDietChartFile(file);
-                updateFormData(["dietPrescribed", "dietChartFile"], file);
+          <p className="text-xs text-slate-500 mb-3">
+            Max 10 files · 10MB per file
+          </p>
+
+          {/* Drag & Drop Area */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (dietChartFiles.length < 10) {
+                setDragActive(true);
               }
             }}
-            className="w-full px-3 py-2 border-2 border-slate-200 bg-white/90 rounded-lg text-slate-900 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-300 transition-all duration-300"
-          />
-          {dietChartFile && (
-            <p className="mt-2 text-sm text-emerald-600">
-              {dietChartFile.name}
-            </p>
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            className={`
+              border-2 rounded-xl p-5 text-center transition-all cursor-pointer
+              ${
+                dragActive
+                  ? "border-emerald-600 bg-emerald-50"
+                  : "border-gray-300 bg-white hover:border-emerald-400"
+              }
+              ${dietChartFiles.length >= 10 ? "opacity-50 pointer-events-none" : ""}
+            `}
+          >
+            <label
+              htmlFor="pdf-upload"
+              className="flex flex-col items-center gap-2 cursor-pointer"
+            >
+              <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+              </span>
+              <div className="text-sm text-slate-600">
+                {dietChartFiles.length >= 10
+                  ? "Maximum 10 files reached"
+                  : "Tap to upload or drag PDF files here"}
+              </div>
+              <div className="text-xs text-slate-400">
+                PDF only · Max 10MB per file
+              </div>
+
+              <input
+                id="pdf-upload"
+                type="file"
+                accept=".pdf,application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={dietChartFiles.length >= 10}
+              />
+            </label>
+          </div>
+
+          {/* Uploaded Files Preview Grid */}
+          {dietChartFiles.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-slate-700 mb-3">
+                Selected Files ({dietChartFiles.length}/10):
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {dietChartFiles.map((file, index) => {
+                  const hasError = fileErrors[file.name];
+                  return (
+                    <div
+                      key={index}
+                      className={`relative group rounded-lg overflow-hidden border p-3 transition-all ${
+                        hasError
+                          ? "bg-red-50 border-red-300"
+                          : "bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                      }`}
+                    >
+                      {/* PDF Icon Preview */}
+                      <div className="flex flex-col items-center justify-center mb-2">
+                        <div
+                          className={`p-3 rounded-lg ${
+                            hasError ? "bg-red-100" : "bg-emerald-100"
+                          }`}
+                        >
+                          <svg
+                            className={`w-8 h-8 ${
+                              hasError ? "text-red-600" : "text-emerald-600"
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* File Info */}
+                      <div className="text-center">
+                        <p
+                          className={`text-xs font-medium truncate mb-1 ${
+                            hasError ? "text-red-800" : "text-slate-800"
+                          }`}
+                          title={file.name}
+                        >
+                          {file.name.length > 20
+                            ? file.name.substring(0, 20) + "..."
+                            : file.name}
+                        </p>
+                        <p className="text-xs text-slate-500 mb-1">
+                          {formatFileSize(file.size)}
+                        </p>
+                        {hasError && (
+                          <p className="text-xs text-red-600 font-medium truncate">
+                            {fileErrors[file.name]}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="absolute top-1 right-1 bg-black/50 hover:bg-black text-white p-1 rounded-full transition opacity-0 group-hover:opacity-100"
+                        title="Remove file"
+                      >
+                        <svg
+                          className="w-3 h-3"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </div>

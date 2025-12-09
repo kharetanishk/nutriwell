@@ -11,6 +11,7 @@ export interface CreateAppointmentRequest {
   appointmentMode: "IN_PERSON" | "ONLINE";
   startAt?: string; // ISO string - required if no slotId
   endAt?: string; // ISO string - required if no slotId
+  bookingProgress?: "USER_DETAILS" | "RECALL" | "SLOT" | "PAYMENT"; // Track where user is in booking flow
 }
 
 export interface CreateAppointmentResponse {
@@ -88,6 +89,7 @@ export async function createAppointment(
 
 export interface UpdateAppointmentSlotRequest {
   slotId: string;
+  bookingProgress?: "USER_DETAILS" | "RECALL" | "SLOT" | "PAYMENT"; // Optional: update progress when slot is selected
 }
 
 export interface UpdateAppointmentSlotResponse {

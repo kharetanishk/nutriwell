@@ -18,18 +18,35 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  RefreshCw,
+  ArrowRight,
+  ClipboardList,
+  CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   getMyAppointments,
   type UserAppointment,
 } from "@/lib/appointments-user";
+import {
+  getPendingAppointments,
+  getNextStepUrl,
+  getStepLabel,
+  type PendingAppointment,
+} from "@/lib/pending-appointments";
+import { useBookingForm } from "@/app/book/context/BookingFormContext";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout, loading, loggingOut } = useAuth();
+  const { setForm } = useBookingForm();
   const [appointments, setAppointments] = useState<UserAppointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [pendingAppointments, setPendingAppointments] = useState<
+    PendingAppointment[]
+  >([]);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [resuming, setResuming] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -40,6 +57,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && user.role !== "ADMIN") {
       fetchAppointments();
+      fetchPendingAppointments();
     }
   }, [user]);
 
@@ -55,6 +73,105 @@ export default function ProfilePage() {
       setLoadingAppointments(false);
     }
   }
+
+  async function fetchPendingAppointments() {
+    setLoadingPending(true);
+    try {
+      const response = await getPendingAppointments();
+      if (response.success && Array.isArray(response.appointments)) {
+        setPendingAppointments(response.appointments);
+      } else {
+        setPendingAppointments([]);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch pending appointments:", error);
+      setPendingAppointments([]);
+    } finally {
+      setLoadingPending(false);
+    }
+  }
+
+  const handleResumeBooking = async (appointment: PendingAppointment) => {
+    try {
+      setResuming(appointment.id);
+      toast.loading("Resuming booking...", { id: `resume-${appointment.id}` });
+
+      const nextStep = getNextStepUrl(appointment.bookingProgress);
+
+      // Ensure appointmentMode is valid
+      const appointmentMode =
+        appointment.mode === "IN_PERSON" || appointment.mode === "ONLINE"
+          ? appointment.mode
+          : "IN_PERSON";
+
+      const formData = {
+        appointmentId: appointment.id,
+        patientId: appointment.patientId,
+        slotId: appointment.slotId || null,
+        planSlug: appointment.planSlug,
+        planName: appointment.planName,
+        planPrice: appointment.planPrice.toString(),
+        planPriceRaw: appointment.planPrice,
+        planDuration: appointment.planDuration,
+        planPackageDuration: appointment.planDuration,
+        planPackageName: appointment.planPackageName || null,
+        appointmentMode: appointmentMode,
+      };
+
+      setForm(formData);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      toast.success(
+        `Continuing from ${getStepLabel(appointment.bookingProgress)}...`,
+        {
+          id: `resume-${appointment.id}`,
+        }
+      );
+
+      router.push(nextStep);
+    } catch (error: any) {
+      console.error("Failed to resume booking:", error);
+      toast.error(
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Failed to resume booking. Please try again.",
+        { id: `resume-${appointment.id}` }
+      );
+    } finally {
+      setResuming(null);
+    }
+  };
+
+  const getProgressIcon = (progress: string | null) => {
+    switch (progress) {
+      case "USER_DETAILS":
+        return User;
+      case "RECALL":
+        return ClipboardList;
+      case "SLOT":
+        return Clock;
+      case "PAYMENT":
+        return CreditCard;
+      default:
+        return AlertCircle;
+    }
+  };
+
+  const getProgressColor = (progress: string | null) => {
+    switch (progress) {
+      case "USER_DETAILS":
+        return "bg-blue-100 text-blue-800";
+      case "RECALL":
+        return "bg-purple-100 text-purple-800";
+      case "SLOT":
+        return "bg-yellow-100 text-yellow-800";
+      case "PAYMENT":
+        return "bg-orange-100 text-orange-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -277,7 +394,7 @@ export default function ProfilePage() {
                             <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs text-slate-500 mb-1">
-                                Appointment Time
+                                Appointment Date
                               </p>
                               <p className="text-sm font-medium text-slate-900">
                                 {new Date(
@@ -289,14 +406,39 @@ export default function ProfilePage() {
                                   year: "numeric",
                                 })}
                               </p>
-                              <p className="text-sm text-slate-600">
-                                {new Date(
-                                  appointment.startAt
-                                ).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
+                              {appointment.status === "CONFIRMED" &&
+                                appointment.endAt && (
+                                  <>
+                                    <p className="text-xs text-slate-500 mb-1 mt-2">
+                                      Slot Timing
+                                    </p>
+                                    <p className="text-sm text-slate-600">
+                                      {new Date(
+                                        appointment.startAt
+                                      ).toLocaleTimeString("en-IN", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}{" "}
+                                      to{" "}
+                                      {new Date(
+                                        appointment.endAt
+                                      ).toLocaleTimeString("en-IN", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </p>
+                                  </>
+                                )}
+                              {appointment.status !== "CONFIRMED" && (
+                                <p className="text-sm text-slate-600 mt-1">
+                                  {new Date(
+                                    appointment.startAt
+                                  ).toLocaleTimeString("en-IN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -360,6 +502,200 @@ export default function ProfilePage() {
                             <Eye className="w-4 h-4" />
                             View Details
                           </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pending Appointments Section - Only for non-admin users */}
+          {user.role !== "ADMIN" && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-emerald-800">
+                    Pending Appointments
+                  </h2>
+                  <p className="text-slate-600 mt-1 text-sm">
+                    Continue where you left off with your booking
+                  </p>
+                </div>
+                <button
+                  onClick={fetchPendingAppointments}
+                  disabled={loadingPending}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${
+                      loadingPending ? "animate-spin" : ""
+                    }`}
+                  />
+                  Refresh
+                </button>
+              </div>
+
+              {loadingPending ? (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                  <div className="flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+                    <span className="ml-2 text-slate-600">
+                      Loading pending appointments...
+                    </span>
+                  </div>
+                </div>
+              ) : pendingAppointments.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+                  <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500 text-lg">
+                    No pending appointments
+                  </p>
+                  <p className="text-slate-400 text-sm mt-2">
+                    You don't have any incomplete bookings
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4 mb-8">
+                  {pendingAppointments.map((appointment) => {
+                    const ProgressIcon = getProgressIcon(
+                      appointment.bookingProgress
+                    );
+                    const isResuming = resuming === appointment.id;
+
+                    return (
+                      <motion.div
+                        key={appointment.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-xl shadow-sm border-2 border-slate-200 p-6 hover:border-emerald-300 transition-colors"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0">
+                                <div
+                                  className={`w-12 h-12 rounded-lg flex items-center justify-center ${getProgressColor(
+                                    appointment.bookingProgress
+                                  )}`}
+                                >
+                                  <ProgressIcon className="w-6 h-6" />
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h3 className="text-lg font-semibold text-slate-900">
+                                    {appointment.planName}
+                                  </h3>
+                                  {appointment.planPackageName && (
+                                    <span className="text-sm text-slate-500">
+                                      ({appointment.planPackageName})
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2 text-sm text-slate-600">
+                                  <div className="flex items-center gap-2">
+                                    <User className="w-4 h-4" />
+                                    <span>{appointment.patient.name}</span>
+                                  </div>
+
+                                  {appointment.slot ? (
+                                    <>
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="w-4 h-4" />
+                                        <span>
+                                          {new Date(
+                                            appointment.slot.startAt
+                                          ).toLocaleDateString("en-IN", {
+                                            weekday: "short",
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                          })}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        <span>
+                                          {new Date(
+                                            appointment.slot.startAt
+                                          ).toLocaleTimeString("en-IN", {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}{" "}
+                                          -{" "}
+                                          {new Date(
+                                            appointment.slot.endAt
+                                          ).toLocaleTimeString("en-IN", {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-4 h-4" />
+                                        <span className="capitalize">
+                                          {appointment.slot.mode
+                                            .toLowerCase()
+                                            .replace("_", " ")}
+                                        </span>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-amber-600">
+                                      <AlertCircle className="w-4 h-4" />
+                                      <span>Slot not selected yet</span>
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">Status:</span>
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                                      Pending
+                                    </span>
+                                    {appointment.bookingProgress && (
+                                      <>
+                                        <span className="text-slate-400">
+                                          •
+                                        </span>
+                                        <span
+                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${getProgressColor(
+                                            appointment.bookingProgress
+                                          )}`}
+                                        >
+                                          {getStepLabel(
+                                            appointment.bookingProgress
+                                          )}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex-shrink-0">
+                            <button
+                              onClick={() => handleResumeBooking(appointment)}
+                              disabled={isResuming}
+                              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isResuming ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  <span>Resuming...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Continue Booking</span>
+                                  <ArrowRight className="w-4 h-4" />
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </motion.div>
                     );

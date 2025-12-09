@@ -41,7 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ---------------- LOGIN ----------------
   const login = (user: User) => {
     setUser(user);
-    localStorage.setItem("user", JSON.stringify(user));
+    // Note: User data stored in memory only for UI state
+    // Authentication is handled via httpOnly cookies (secure, XSS-resistant)
     toast.success("Logged in");
   };
 
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Clear all auth-related localStorage
+    // Note: auth_token is not stored in localStorage (uses httpOnly cookies)
     localStorage.removeItem("user");
     localStorage.removeItem("login_otp_expiry");
     localStorage.removeItem("bookingForm");
@@ -83,34 +85,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.get<{ success: boolean; user: User }>("/auth/me");
       if (res.data.success && res.data.user) {
         setUser(res.data.user);
+        // Store user data in localStorage only for UI state (not for auth)
+        // Authentication is handled via httpOnly cookies
         localStorage.setItem("user", JSON.stringify(res.data.user));
       } else {
         // If API returns success:false, clear user state
         setUser(null);
         localStorage.removeItem("user");
-        localStorage.removeItem("auth_token");
       }
     } catch (err: any) {
       const status = err?.response?.status;
       const errorMessage = err?.response?.data?.message || err?.message;
+      const errorType = err?.response?.data?.errorType;
+      const isDatabaseError = status === 500 && errorType === "database_error";
 
       // Handle 401 specifically - user is not authenticated
       if (status === 401) {
         setUser(null);
         localStorage.removeItem("user");
-        localStorage.removeItem("auth_token");
         if (process.env.NODE_ENV === "development") {
           console.log("[Auth] User not authenticated (401)");
         }
       } else if (status === 400) {
         // Handle 400 - Bad request (invalid token, invalid role, etc.)
-        console.error("[Auth] Bad request (400):", errorMessage);
-        // Clear potentially invalid auth data
-        setUser(null);
-        localStorage.removeItem("user");
-        localStorage.removeItem("auth_token");
+        // But check if it's actually a database error that was misclassified
+        if (
+          errorMessage?.includes("database") ||
+          errorMessage?.includes("Can't reach")
+        ) {
+          // Database error misclassified as 400 - treat as server error
+          console.warn(
+            "[Auth] Database error received as 400, treating as server error"
+          );
+          // Keep user logged in using localStorage fallback
+          const storedUser = localStorage.getItem("user");
+          if (storedUser) {
+            try {
+              setUser(JSON.parse(storedUser));
+              console.log(
+                "[Auth] Using stored user data due to database error"
+              );
+            } catch (e) {
+              localStorage.removeItem("user");
+            }
+          }
+        } else {
+          // Actual authentication/validation error
+          console.error("[Auth] Bad request (400):", errorMessage);
+          // Clear potentially invalid auth data
+          setUser(null);
+          localStorage.removeItem("user");
+        }
+      } else if (status === 500 || isDatabaseError) {
+        // Server error (including database errors) - keep user logged in
+        // Use stored user data as fallback
+        console.warn(
+          "[Auth] Server error (500) - keeping user logged in with stored data:",
+          {
+            status,
+            message: errorMessage,
+            errorType,
+          }
+        );
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+            console.log("[Auth] Using stored user data due to server error");
+          } catch (e) {
+            // Invalid stored user, clear it
+            localStorage.removeItem("user");
+            setUser(null);
+          }
+        } else {
+          // No stored user, but don't clear auth state on server errors
+          // User might still be authenticated, just can't verify right now
+          console.log(
+            "[Auth] No stored user, but keeping auth state (server error)"
+          );
+        }
       } else {
-        // For other errors (404, 500, etc.), try to use stored user as fallback
+        // For other errors (404, etc.), try to use stored user as fallback
         if (process.env.NODE_ENV === "development") {
           console.error("[Auth] Failed to fetch user:", {
             status,
@@ -129,7 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           // No stored user, clear auth state
           setUser(null);
-          localStorage.removeItem("auth_token");
         }
       }
     }

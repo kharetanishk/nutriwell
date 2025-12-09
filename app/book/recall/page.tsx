@@ -51,19 +51,30 @@ export default function RecallPage() {
       BLOCK DIRECT ACCESS - Ensure plan details and patient exist
   --------------------------------------------------*/
   useEffect(() => {
-    // Check if plan details are present (planPackageDuration is optional for general consultation)
-    if (!form.planSlug || !form.planName || !form.planPriceRaw) {
-      toast.error("Please select a plan first");
-      router.replace("/services");
-      return;
-    }
+    // Allow a small delay for form context to load from localStorage
+    const timer = setTimeout(() => {
+      // Check if plan details are present (planPackageDuration is optional for general consultation)
+      if (!form.planSlug || !form.planName || !form.planPriceRaw) {
+        console.log(
+          "[RECALL PAGE] Missing plan details, redirecting to services"
+        );
+        toast.error("Please select a plan first");
+        router.replace("/services");
+        return;
+      }
 
-    // Check if patient exists (required for recall)
-    if (!form.patientId) {
-      toast.error("Please complete the user details form first");
-      router.replace("/book/user-details");
-      return;
-    }
+      // Check if patient exists (required for recall)
+      if (!form.patientId) {
+        console.log(
+          "[RECALL PAGE] Missing patientId, redirecting to user-details"
+        );
+        toast.error("Please complete the user details form first");
+        router.replace("/book/user-details");
+        return;
+      }
+    }, 200); // Small delay to allow form context to load
+
+    return () => clearTimeout(timer);
   }, [form.planSlug, form.planName, form.planPriceRaw, form.patientId, router]);
 
   /* -------------------------------
@@ -317,8 +328,22 @@ export default function RecallPage() {
       const planDuration = form.planPackageDuration || "40 min";
 
       // appointmentMode must be IN_PERSON or ONLINE
-      const appointmentMode =
-        (form.appointmentMode as "IN_PERSON" | "ONLINE") || "IN_PERSON";
+      // Ensure we always have a valid value
+      let appointmentMode: "IN_PERSON" | "ONLINE" = "IN_PERSON"; // Default
+      if (
+        form.appointmentMode === "IN_PERSON" ||
+        form.appointmentMode === "ONLINE"
+      ) {
+        appointmentMode = form.appointmentMode;
+      } else if (form.appointmentMode) {
+        // Try to normalize the value
+        const normalized = form.appointmentMode
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "_");
+        if (normalized === "IN_PERSON" || normalized === "ONLINE") {
+          appointmentMode = normalized as "IN_PERSON" | "ONLINE";
+        }
+      }
 
       // Create appointment with PENDING status first (to get appointmentId)
       // TODO: For testing purposes, using ₹1 for general-consultation.
@@ -333,7 +358,7 @@ export default function RecallPage() {
         planPrice: planPrice, // Using ₹1 for testing (general-consultation)
         planDuration: planDuration, // Always provide a duration (required field)
         planPackageName: form.planPackageName || undefined,
-        appointmentMode: appointmentMode,
+        appointmentMode: appointmentMode, // Always valid: "IN_PERSON" or "ONLINE"
       };
 
       console.log("[RECALL SUBMISSION] Appointment data:", {
@@ -341,7 +366,10 @@ export default function RecallPage() {
         planPrice: `₹${appointmentData.planPrice}`,
       });
 
-      const appointmentResponse = await createAppointment(appointmentData);
+      const appointmentResponse = await createAppointment({
+        ...appointmentData,
+        bookingProgress: "RECALL", // User has completed recall, next step is slot
+      });
 
       console.log("[RECALL SUBMISSION] Appointment created:", {
         success: appointmentResponse.success,

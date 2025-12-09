@@ -1,9 +1,15 @@
 "use client";
 
-import React from "react";
-import { Stethoscope, Calendar, Edit2 } from "lucide-react";
-import { DoctorNotesFormData } from "@/lib/doctor-notes-api";
+import React, { useState } from "react";
+import { Stethoscope, Calendar, Edit2, Trash2, Loader2 } from "lucide-react";
+import {
+  DoctorNotesFormData,
+  deleteDoctorNoteAttachment,
+} from "@/lib/doctor-notes-api";
 import { motion } from "framer-motion";
+import toast from "react-hot-toast";
+
+import { DoctorNoteAttachment } from "@/lib/doctor-notes-api";
 
 interface DoctorNotesPreviewProps {
   formData: DoctorNotesFormData;
@@ -11,6 +17,8 @@ interface DoctorNotesPreviewProps {
   updatedAt?: string;
   isDraft?: boolean;
   onEdit?: () => void;
+  attachments?: DoctorNoteAttachment[];
+  onAttachmentDeleted?: () => void; // Callback to refresh data after deletion
 }
 
 // Helper function to format values
@@ -28,6 +36,135 @@ const formatValue = (value: any): string => {
   }
   return String(value);
 };
+
+// PDF Attachment List Component with Delete Functionality
+function PDFAttachmentList({
+  attachments,
+  formatFileSize,
+  onAttachmentDeleted,
+}: {
+  attachments: DoctorNoteAttachment[];
+  formatFileSize: (bytes?: number) => string;
+  onAttachmentDeleted?: () => void;
+}) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (attachmentId: string, fileName: string) => {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
+      return;
+    }
+
+    setDeletingId(attachmentId);
+    try {
+      const result = await deleteDoctorNoteAttachment(attachmentId);
+      if (result.success) {
+        toast.success("PDF deleted successfully", {
+          duration: 3000,
+        });
+        // Call refresh callback if provided
+        if (onAttachmentDeleted) {
+          onAttachmentDeleted();
+        }
+      } else {
+        throw new Error(result.error || "Failed to delete PDF");
+      }
+    } catch (error: any) {
+      console.error("Delete PDF error:", error);
+      toast.error(
+        error?.response?.data?.error ||
+          error?.message ||
+          "Failed to delete PDF",
+        {
+          duration: 5000,
+          style: {
+            background: "#fee2e2",
+            color: "#991b1b",
+            border: "1px solid #fca5a5",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            maxWidth: "500px",
+          },
+        }
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {attachments.map((attachment, index) => (
+        <div
+          key={attachment.id || index}
+          className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors group"
+        >
+          <a
+            href={attachment.fileUrl || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 flex-1 min-w-0"
+          >
+            <svg
+              className="w-5 h-5 text-emerald-600 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-emerald-700 group-hover:text-emerald-800 truncate">
+                {attachment.fileName || "Diet Chart PDF"}
+              </p>
+              {attachment.sizeInBytes && (
+                <p className="text-xs text-slate-500">
+                  {formatFileSize(attachment.sizeInBytes)}
+                </p>
+              )}
+            </div>
+          </a>
+          <div className="flex items-center gap-2">
+            {/* External Link Icon */}
+            <svg
+              className="w-4 h-4 text-emerald-600 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+            {/* Delete Button */}
+            <button
+              onClick={() =>
+                handleDelete(attachment.id, attachment.fileName || "PDF")
+              }
+              disabled={deletingId === attachment.id}
+              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Delete PDF"
+            >
+              {deletingId === attachment.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Helper to check if a value exists
 const hasValue = (value: any): boolean => {
@@ -110,11 +247,13 @@ const FieldDisplay = ({
   const formatted = formatValue(value);
   if (formatted === "—") return null;
   return (
-    <div className="bg-slate-50 rounded-lg p-3">
-      <div className="text-sm font-semibold text-slate-600 mb-1">{label}</div>
-      <div className="text-slate-900">
+    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        {label}
+      </div>
+      <div className="text-base font-medium text-slate-900">
         {formatted}
-        {unit && ` ${unit}`}
+        {unit && <span className="text-slate-600 ml-1">{unit}</span>}
       </div>
     </div>
   );
@@ -129,9 +268,11 @@ const SectionWrapper = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="mb-6 pb-6 border-b border-slate-200 last:border-b-0">
-      <h4 className="text-lg font-semibold text-emerald-700 mb-4">{title}</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
+    <div className="mb-8 pb-8 border-b-2 border-slate-300 last:border-b-0 bg-white rounded-xl p-6 shadow-sm">
+      <h4 className="text-xl font-bold text-emerald-700 mb-6 pb-3 border-b-2 border-emerald-100">
+        {title}
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{children}</div>
     </div>
   );
 };
@@ -142,48 +283,9 @@ export default function DoctorNotesPreview({
   updatedAt,
   isDraft,
   onEdit,
+  attachments = [],
+  onAttachmentDeleted,
 }: DoctorNotesPreviewProps) {
-  // Console log the entire form data for debugging
-  console.log("==========================================");
-  console.log("[DOCTOR NOTES PREVIEW] Full Form Data JSON:");
-  console.log(JSON.stringify(formData, null, 2));
-  console.log("==========================================");
-  console.log("[DOCTOR NOTES PREVIEW] Form Data Keys:", Object.keys(formData));
-  console.log("[DOCTOR NOTES PREVIEW] Form Data Summary:");
-  console.log(
-    "  - Personal Info:",
-    !!formData.personalHistory || !!formData.reasonForJoiningProgram
-  );
-  console.log("  - Morning Intake:", !!formData.morningIntake);
-  console.log("  - Breakfast:", !!formData.breakfast);
-  if (formData.breakfast) {
-    console.log("  - Breakfast Keys:", Object.keys(formData.breakfast));
-    console.log(
-      "  - Breakfast Data:",
-      JSON.stringify(formData.breakfast, null, 2)
-    );
-  }
-  console.log("  - Mid Morning:", !!formData.midMorning);
-  if (formData.midMorning) {
-    console.log("  - Mid Morning Keys:", Object.keys(formData.midMorning));
-    console.log(
-      "  - Mid Morning Data:",
-      JSON.stringify(formData.midMorning, null, 2)
-    );
-  }
-  console.log("  - Lunch:", !!formData.lunch);
-  console.log("  - Mid Day:", !!formData.midDay);
-  console.log("  - Evening Snack:", !!formData.eveningSnack);
-  console.log("  - Dinner:", !!formData.dinner);
-  console.log("  - Weekend Diet:", !!formData.weekendDiet);
-  console.log("  - Questionnaire:", !!formData.questionnaire);
-  console.log("  - Food Frequency:", !!formData.foodFrequency);
-  console.log("  - Health Profile:", !!formData.healthProfile);
-  console.log("  - Diet Prescribed:", !!formData.dietPrescribed);
-  console.log("  - Body Measurements:", !!formData.bodyMeasurements);
-  console.log("  - Notes:", !!formData.notes);
-  console.log("==========================================");
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -212,9 +314,9 @@ export default function DoctorNotesPreview({
         {onEdit && (
           <button
             onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className="w-5 h-5" />
             Edit Notes
           </button>
         )}
@@ -222,7 +324,7 @@ export default function DoctorNotesPreview({
 
       {/* Timestamps */}
       {(createdAt || updatedAt) && (
-        <div className="mb-6 pb-4 border-b border-slate-200 flex flex-wrap gap-4 text-sm text-slate-600">
+        <div className="mb-8 pb-6 border-b-2 border-slate-300 flex flex-wrap gap-6 text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
           {createdAt && (
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -257,7 +359,7 @@ export default function DoctorNotesPreview({
       )}
 
       {/* Form Data Preview */}
-      <div className="space-y-6 max-h-[800px] overflow-y-auto pr-2">
+      <div className="space-y-8 max-h-[800px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         {/* Section 1: Personal Info */}
         {(formData.personalHistory ||
           formData.reasonForJoiningProgram ||
@@ -270,7 +372,8 @@ export default function DoctorNotesPreview({
           formData.previousDietDetails ||
           formData.typeOfDietTaken ||
           formData.maritalStatus ||
-          formData.numberOfChildren ||
+          (formData.numberOfChildren !== undefined &&
+            formData.numberOfChildren !== null) ||
           formData.dietPreference ||
           formData.wakeupTime ||
           formData.bedTime ||
@@ -315,7 +418,12 @@ export default function DoctorNotesPreview({
             />
             <FieldDisplay
               label="Number of Children"
-              value={formData.numberOfChildren}
+              value={
+                formData.numberOfChildren !== undefined &&
+                formData.numberOfChildren !== null
+                  ? formData.numberOfChildren
+                  : "—"
+              }
             />
             <FieldDisplay
               label="Diet Preference"
@@ -1399,8 +1507,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.nonVeg.length > 0
                     : Object.keys(formData.foodFrequency.nonVeg).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Non-Veg
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1469,8 +1577,8 @@ export default function DoctorNotesPreview({
                 {/* Dairy */}
                 {formData.foodFrequency.dairy &&
                   Object.keys(formData.foodFrequency.dairy).length > 0 && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Dairy
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1511,8 +1619,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.packaged.length > 0
                     : Object.keys(formData.foodFrequency.packaged).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Packaged / Daily Items
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1590,8 +1698,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.sweeteners.length > 0
                     : Object.keys(formData.foodFrequency.sweeteners).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Sweeteners
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1651,8 +1759,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.drinks.length > 0
                     : Object.keys(formData.foodFrequency.drinks).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Drinks
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1712,8 +1820,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.lifestyle.length > 0
                     : Object.keys(formData.foodFrequency.lifestyle).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Lifestyle
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1825,8 +1933,8 @@ export default function DoctorNotesPreview({
                     ? formData.foodFrequency.healthyFoods.length > 0
                     : Object.keys(formData.foodFrequency.healthyFoods).length >
                       0) && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Healthy Foods
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1974,8 +2082,8 @@ export default function DoctorNotesPreview({
                 {/* Oil / Fat */}
                 {formData.foodFrequency.oilFat &&
                   Object.keys(formData.foodFrequency.oilFat).length > 0 && (
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <h5 className="font-semibold text-slate-700 mb-3">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
+                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
                         Oil / Fat
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2037,7 +2145,7 @@ export default function DoctorNotesPreview({
                   />
                 </div>
 
-                {/* Health Conditions - Handle both array and object formats */}
+                {/* Health Conditions - Show all conditions with Yes/No */}
                 {formData.healthProfile.conditions &&
                   (Array.isArray(formData.healthProfile.conditions)
                     ? formData.healthProfile.conditions.length > 0
@@ -2049,69 +2157,106 @@ export default function DoctorNotesPreview({
                           Health Conditions
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {Array.isArray(formData.healthProfile.conditions)
-                            ? // Handle as array
-                              formData.healthProfile.conditions
-                                .filter(
-                                  (condition: any) =>
-                                    condition?.hasCondition === "Yes"
-                                )
-                                .map((condition: any, idx: number) => (
+                          {(() => {
+                            // List of all conditions from the form
+                            const allConditions = [
+                              "High B.P",
+                              "Diabetes",
+                              "High Cholesterol",
+                              "Obesity",
+                              "Cardiac Risk",
+                              "Heart Problem",
+                              "Back Pain",
+                              "Neck Pain",
+                              "Knee Pain",
+                              "Shoulder Pain",
+                              "Respiratory Problem (Asthma/Breathlessness)",
+                              "Post-Operative",
+                              "Hormonal Problem",
+                              "Thyroid",
+                              "PCOD",
+                              "PCOS",
+                              "Gynec Problem",
+                              "Gastric Problem",
+                              "Acidity",
+                              "Constipation",
+                              "Allergy",
+                              "Water Retention",
+                            ];
+
+                            if (
+                              Array.isArray(formData.healthProfile?.conditions)
+                            ) {
+                              // Handle as array - show all conditions
+                              return allConditions.map((conditionName) => {
+                                const condition =
+                                  formData.healthProfile?.conditions?.find(
+                                    (c: any) => c?.name === conditionName
+                                  );
+                                const hasCondition =
+                                  condition?.hasCondition || "No";
+                                return (
                                   <div
-                                    key={idx}
+                                    key={conditionName}
                                     className="bg-white rounded p-3 border border-emerald-200"
                                   >
                                     <div className="font-medium text-slate-900 mb-1">
-                                      {condition.name}
+                                      {conditionName}
                                     </div>
-                                    <div className="text-sm text-emerald-600 font-semibold">
-                                      {condition.hasCondition}
-                                    </div>
-                                    {condition.notes && (
-                                      <div className="text-xs text-slate-600 mt-1">
-                                        {condition.notes}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))
-                            : // Handle as object (legacy format)
-                              Object.entries(
-                                formData.healthProfile.conditions
-                              ).map(
-                                ([conditionName, conditionData]: [
-                                  string,
-                                  any
-                                ]) => {
-                                  if (
-                                    !conditionData?.hasCondition ||
-                                    conditionData.hasCondition === "No"
-                                  )
-                                    return null;
-                                  return (
                                     <div
-                                      key={conditionName}
-                                      className="bg-white rounded p-3 border border-emerald-200"
+                                      className={`text-sm font-semibold ${
+                                        hasCondition === "Yes"
+                                          ? "text-emerald-600"
+                                          : "text-slate-500"
+                                      }`}
                                     >
-                                      <div className="font-medium text-slate-900 mb-1">
-                                        {conditionName
-                                          .replace(/([A-Z])/g, " $1")
-                                          .replace(/^./, (str) =>
-                                            str.toUpperCase()
-                                          )
-                                          .trim()}
-                                      </div>
-                                      <div className="text-sm text-emerald-600 font-semibold">
-                                        {conditionData.hasCondition}
-                                      </div>
-                                      {conditionData.notes && (
+                                      {hasCondition}
+                                    </div>
+                                    {hasCondition === "Yes" &&
+                                      condition?.notes && (
+                                        <div className="text-xs text-slate-600 mt-1">
+                                          {condition.notes}
+                                        </div>
+                                      )}
+                                  </div>
+                                );
+                              });
+                            } else {
+                              // Handle as object - show all conditions
+                              return allConditions.map((conditionName) => {
+                                const conditionData = (
+                                  formData.healthProfile?.conditions as any
+                                )?.[conditionName];
+                                const hasCondition =
+                                  conditionData?.hasCondition || "No";
+                                return (
+                                  <div
+                                    key={conditionName}
+                                    className="bg-white rounded p-3 border border-emerald-200"
+                                  >
+                                    <div className="font-medium text-slate-900 mb-1">
+                                      {conditionName}
+                                    </div>
+                                    <div
+                                      className={`text-sm font-semibold ${
+                                        hasCondition === "Yes"
+                                          ? "text-emerald-600"
+                                          : "text-slate-500"
+                                      }`}
+                                    >
+                                      {hasCondition}
+                                    </div>
+                                    {hasCondition === "Yes" &&
+                                      conditionData?.notes && (
                                         <div className="text-xs text-slate-600 mt-1">
                                           {conditionData.notes}
                                         </div>
                                       )}
-                                    </div>
-                                  );
-                                }
-                              )}
+                                  </div>
+                                );
+                              });
+                            }
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2211,6 +2356,123 @@ export default function DoctorNotesPreview({
                   value={formData.dietPrescribed.dietChart}
                 />
               </div>
+              {/* PDF Attachments */}
+              {(attachments.some(
+                (att) =>
+                  att.section === "DietPrescribed" &&
+                  att.fileCategory === "DIET_CHART"
+              ) ||
+                (formData.dietPrescribed as any)?.dietChartUrl) && (
+                <div className="md:col-span-2">
+                  <div className="bg-white border-2 border-emerald-200 rounded-lg p-4 shadow-sm">
+                    <label className="block font-semibold mb-3 text-slate-700 text-sm sm:text-base">
+                      Diet Chart PDFs
+                    </label>
+                    {/* Show all attachments from API, fallback to formData for backward compatibility */}
+                    {(() => {
+                      const dietChartAttachments = attachments.filter(
+                        (att) =>
+                          att.section === "DietPrescribed" &&
+                          att.fileCategory === "DIET_CHART"
+                      );
+
+                      // Fallback to single file from formData for backward compatibility
+                      // Note: These fields may not exist in the TypeScript interface but could be in the data
+                      const dietPrescribedData = formData.dietPrescribed as any;
+                      const legacyPdfUrl = dietPrescribedData?.dietChartUrl;
+                      const legacyFileName =
+                        dietPrescribedData?.dietChartFileName;
+                      const legacyFileSize =
+                        dietPrescribedData?.dietChartFileSize;
+
+                      // If no attachments found, check for legacy single file
+                      if (dietChartAttachments.length === 0 && !legacyPdfUrl) {
+                        return (
+                          <p className="text-sm text-slate-500 italic">
+                            No PDF files uploaded
+                          </p>
+                        );
+                      }
+
+                      const formatFileSize = (bytes?: number) => {
+                        if (!bytes) return "";
+                        if (bytes === 0) return "0 Bytes";
+                        const k = 1024;
+                        const sizes = ["Bytes", "KB", "MB"];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return (
+                          Math.round((bytes / Math.pow(k, i)) * 100) / 100 +
+                          " " +
+                          sizes[i]
+                        );
+                      };
+
+                      return (
+                        <div className="space-y-2">
+                          {/* Display all attachments */}
+                          <PDFAttachmentList
+                            attachments={dietChartAttachments}
+                            formatFileSize={formatFileSize}
+                            onAttachmentDeleted={
+                              onAttachmentDeleted || undefined
+                            }
+                          />
+
+                          {/* Legacy single file fallback */}
+                          {dietChartAttachments.length === 0 &&
+                            legacyPdfUrl && (
+                              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
+                                <a
+                                  href={legacyPdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 flex-1 min-w-0 group"
+                                >
+                                  <svg
+                                    className="w-5 h-5 text-emerald-600 flex-shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                    />
+                                  </svg>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-emerald-700 group-hover:text-emerald-800 truncate">
+                                      {legacyFileName || "View Diet Chart PDF"}
+                                    </p>
+                                    {legacyFileSize && (
+                                      <p className="text-xs text-slate-500">
+                                        {formatFileSize(legacyFileSize)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </a>
+                                <svg
+                                  className="w-4 h-4 text-emerald-600 flex-shrink-0 ml-2"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
               <FieldDisplay label="Code" value={formData.dietPrescribed.code} />
             </SectionWrapper>
           )}
@@ -2316,114 +2578,6 @@ export default function DoctorNotesPreview({
             <div className="bg-slate-50 rounded-lg p-4">
               <div className="text-slate-900 whitespace-pre-wrap">
                 {formData.notes}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Catch-all: Render any remaining fields that might have been missed */}
-        {(() => {
-          // Get all top-level keys
-          const allKeys = Object.keys(formData);
-          const renderedSections = new Set([
-            "personalHistory",
-            "reasonForJoiningProgram",
-            "ethnicity",
-            "joiningDate",
-            "expiryDate",
-            "dietPrescriptionDate",
-            "durationOfDiet",
-            "previousDietTaken",
-            "previousDietDetails",
-            "typeOfDietTaken",
-            "maritalStatus",
-            "numberOfChildren",
-            "dietPreference",
-            "wakeupTime",
-            "bedTime",
-            "dayNap",
-            "workoutTiming",
-            "workoutType",
-            "morningIntake",
-            "breakfast",
-            "midMorning",
-            "lunch",
-            "midDay",
-            "eveningSnack",
-            "dinner",
-            "weekendDiet",
-            "questionnaire",
-            "foodFrequency",
-            "healthProfile",
-            "dietPrescribed",
-            "bodyMeasurements",
-            "notes",
-          ]);
-
-          const unrenderedKeys = allKeys.filter(
-            (key) => !renderedSections.has(key)
-          );
-
-          if (unrenderedKeys.length > 0) {
-            console.warn(
-              "[DOCTOR NOTES PREVIEW] Unrendered fields found:",
-              unrenderedKeys
-            );
-            return (
-              <div className="mt-6 pt-6 border-t-2 border-orange-200">
-                <h4 className="text-lg font-semibold text-orange-700 mb-4">
-                  ⚠️ Additional Fields (Not in Standard Sections)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {unrenderedKeys.map((key) => {
-                    const value = (formData as any)[key];
-                    if (!hasValue(value)) return null;
-                    return (
-                      <FieldDisplay
-                        key={key}
-                        label={key
-                          .replace(/([A-Z])/g, " $1")
-                          .replace(/^./, (str) => str.toUpperCase())}
-                        value={value}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
-
-        {/* Debug: Show all fields that might be missing */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-6 pt-6 border-t-2 border-red-200">
-            <h4 className="text-lg font-semibold text-red-700 mb-4">
-              🔍 Debug: All Form Data Fields
-            </h4>
-            <div className="bg-red-50 rounded-lg p-4 max-h-96 overflow-y-auto mb-4">
-              <pre className="text-xs text-slate-700 whitespace-pre-wrap">
-                {JSON.stringify(formData, null, 2)}
-              </pre>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-              <h5 className="font-semibold text-yellow-800 mb-2">
-                All Fields with Values:
-              </h5>
-              <div className="space-y-1 text-xs">
-                {findAllFieldsWithValues(formData).map((field, idx) => (
-                  <div key={idx} className="text-slate-700">
-                    <span className="font-mono text-yellow-900">
-                      {field.path.join(".")}
-                    </span>
-                    <span className="text-slate-600 ml-2">
-                      ={" "}
-                      {typeof field.value === "object"
-                        ? JSON.stringify(field.value)
-                        : String(field.value)}
-                    </span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
